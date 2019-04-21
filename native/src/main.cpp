@@ -70,7 +70,7 @@ static bool recording = false;
 //-------------------------
 static int draw_indexed_count = 0;
 
-const std::string parameters_file = "parameters.cfg";
+const std::string parameters_file = "param/parameters.txt";
 
 // Keyboard variables
 const int KEYS_SIZE = 255;
