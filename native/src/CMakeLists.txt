@@ -10,7 +10,9 @@ set(GTAVision_src
     enums.h
     nativeCaller.h
     natives.h
-    types.h
+	types.h
+	scenario.h
+	scenario.cpp
 )
 
 add_library(GTAVisionNative SHARED ${GTAVision_src})
