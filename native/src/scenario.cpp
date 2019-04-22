@@ -193,69 +193,68 @@ DatasetAnnotator::DatasetAnnotator(std::string config_file, int _is_night)
 
 	this->fov = 50;
 
-	std::vector<const char*> weathers_night = {
-		"CLEAR",
-		"CLEAR",
-		"CLEAR",
-		"CLEAR",
-		"CLEAR",
-		"EXTRASUNNY",
-		"EXTRASUNNY",
-		"EXTRASUNNY",
-		"RAIN",
-		"THUNDER",
-		"SMOG",
-		"FOGGY",
-		"XMAS",
-		"BLIZZARD"
-	};
+	//std::vector<const char*> weathers_night = {
+	//	"CLEAR",
+	//	"CLEAR",
+	//	"CLEAR",
+	//	"CLEAR",
+	//	"CLEAR",
+	//	"EXTRASUNNY",
+	//	"EXTRASUNNY",
+	//	"EXTRASUNNY",
+	//	"RAIN",
+	//	"THUNDER",
+	//	"SMOG",
+	//	"FOGGY",
+	//	"XMAS",
+	//	"BLIZZARD"
+	//};
 
-	std::vector<const char*> weathers_day = {
-		"CLEAR",
-		"CLEAR",
-		"CLEAR",
-		"CLEAR",
-		"EXTRASUNNY",
-		"EXTRASUNNY",
-		"EXTRASUNNY",
-		"RAIN",
-		"THUNDER",
-		"CLOUDS",
-		"OVERCAST",
-		"SMOG",
-		"FOGGY",
-		"XMAS",
-		"BLIZZARD"
-	};
+	//std::vector<const char*> weathers_day = {
+	//	"CLEAR",
+	//	"CLEAR",
+	//	"CLEAR",
+	//	"CLEAR",
+	//	"EXTRASUNNY",
+	//	"EXTRASUNNY",
+	//	"EXTRASUNNY",
+	//	"RAIN",
+	//	"THUNDER",
+	//	"CLOUDS",
+	//	"OVERCAST",
+	//	"SMOG",
+	//	"FOGGY",
+	//	"XMAS",
+	//	"BLIZZARD"
+	//};
 
-	// FIXME store the condition from creation in scenario creator
 	//randomizing time
-	int time_h, time_m, time_s;
-	int date_m;
-	char* weather;
+	//int time_h, time_m, time_s;
+	//int date_m;
+	//char* weather;
 
-	std::vector<int> night_hours = { 20, 22, 23, 4, 5, 6 };
+	//std::vector<int> night_hours = { 20, 22, 23, 4, 5, 6 };
 
-	// set time
-	if (is_night) {
-		time_h = night_hours[random_int(0, 5)];
-		weather = (char *)weathers_night[rand() % weathers_night.size()];
-	}
-	else {
-		time_h = random_int(7, 19);
-		weather = (char *)weathers_day[rand() % weathers_day.size()];
-	}
-	time_m = random_int(0, 59);
-	time_s = random_int(0, 59);
-	date_m = random_int(1, 12);
+	//// set time
+	//if (is_night) {
+	//	time_h = night_hours[random_int(0, 5)];
+	//	weather = (char *)weathers_night[rand() % weathers_night.size()];
+	//}
+	//else {
+	//	time_h = random_int(7, 19);
+	//	weather = (char *)weathers_day[rand() % weathers_day.size()];
+	//}
+	//time_m = random_int(0, 59);
+	//time_s = random_int(0, 59);
+	//date_m = random_int(1, 12);
 
-	TIME::SET_CLOCK_TIME(time_h, time_m, time_s);
+	//TIME::SET_CLOCK_TIME(time_h, time_m, time_s);
 
-	// randomizing weather
-	GAMEPLAY::SET_RANDOM_WEATHER_TYPE();
-	GAMEPLAY::CLEAR_WEATHER_TYPE_PERSIST();
-	GAMEPLAY::SET_OVERRIDE_WEATHER(weather);
-	GAMEPLAY::SET_WEATHER_TYPE_NOW(weather);
+	//// randomizing weather
+	//GAMEPLAY::SET_RANDOM_WEATHER_TYPE();
+	//GAMEPLAY::CLEAR_WEATHER_TYPE_PERSIST();
+	//GAMEPLAY::SET_OVERRIDE_WEATHER(weather);
+	//GAMEPLAY::SET_WEATHER_TYPE_NOW(weather);
 
 	loadScenario(file_scenario);
 
@@ -818,6 +817,11 @@ void DatasetAnnotator::loadScenario(const char* fname)
 	Vector3 vTP1, vTP2, vTP1_rot, vTP2_rot;
 	int stop;
 
+	// weather type and time
+	int time_h, time_m, time_s;
+	int wind;
+	std::string weather;
+
 	fscanf_s(f, "%d ", &moving);
 	if (moving == 0) 
 		fscanf_s(f, "%f %f %f %d %f %f %f\n", &cCoords.x, &cCoords.y, &cCoords.z, &stop, &cRot.x, &cRot.y, &cRot.z);
@@ -826,6 +830,22 @@ void DatasetAnnotator::loadScenario(const char* fname)
 
 	fscanf_s(f, "%f %f %f %f %f %f\n", &vTP1.x, &vTP1.y, &vTP1.z, &vTP1_rot.x, &vTP1_rot.y, &vTP1_rot.z);
 	fscanf_s(f, "%f %f %f %f %f %f\n", &vTP2.x, &vTP2.y, &vTP2.z, &vTP2_rot.x, &vTP2_rot.y, &vTP2_rot.z);
+	fscanf_s(f, "%d %s\n", &wind, weather);
+	fscanf_s(f, "%d %d %d\n", &time_h, &time_m, &time_s);
+
+	//FIXME add wind if required
+
+	TIME::SET_CLOCK_TIME(time_h, time_m, time_s);
+
+	GAMEPLAY::SET_RANDOM_WEATHER_TYPE();
+	GAMEPLAY::CLEAR_WEATHER_TYPE_PERSIST();
+	// FIXME check if this works or if game crashes because 
+	char * act_weather = new char[weather.size()+1];
+	std::strcpy(act_weather, weather.c_str());
+	GAMEPLAY::SET_OVERRIDE_WEATHER(act_weather);
+	GAMEPLAY::SET_WEATHER_TYPE_NOW(act_weather);
+	delete[] act_weather;
+
 
 	Entity e = PLAYER::PLAYER_PED_ID();
 
