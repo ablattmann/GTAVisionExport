@@ -64,6 +64,10 @@ bool group = false;
 const int nMaxPeds = 200;
 const int numberTaks = 9;
 
+// weather parameters
+std::string weather;
+
+
 
 LPCSTR tasks[numberTaks] = {
 	"SCENARIO",
@@ -319,10 +323,14 @@ void saveFile()
 	fprintf_s(f, "%f %f %f %f %f %f\n", TP1.x, TP1.y, TP1.z, TP1_rot.x, TP1_rot.y, TP1_rot.z);
 	fprintf_s(f, "%f %f %f %f %f %f\n", TP2.x, TP2.y, TP2.z, TP2_rot.x, TP2_rot.y, TP2_rot.z);
 
-	// get actual weather conditions and time
-	// FIXME first find out about usage of macros conncerning weather 
-
-	// store weather conditions here
+	// store actual weather and wind 
+	fprintf_s(f, "%d %s\n", static_cast<int>(wind), weather);
+	
+	//also write current time
+	const auto hours = TIME::GET_CLOCK_HOURS();
+	const auto minutes = TIME::GET_CLOCK_MINUTES();
+	const auto secs = TIME::GET_CLOCK_SECONDS();
+	fprintf_s(f, "%d %d %d\n", hours, minutes, secs);
 
 
 	fprintf_s(f, "%s", logString);
@@ -1200,6 +1208,7 @@ void ScenarioCreator::weather_menu()
 				GAMEPLAY::CLEAR_OVERRIDE_WEATHER();
 				GAMEPLAY::SET_WEATHER_TYPE_NOW_PERSIST((char *)lines[activeLineIndexWeather]);
 				GAMEPLAY::CLEAR_WEATHER_TYPE_PERSIST();
+				weather=std::string((char *)lines[activeLineIndexWeather]);
 			}
 			waitTime = 200;
 		}
