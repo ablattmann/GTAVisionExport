@@ -61,7 +61,7 @@ int activeLineIndexPeds = 0;
 int nPeds = 1;
 int currentBehaviour = 0;
 bool group = false;
-const int nMaxPeds = 50;
+const int nMaxPeds = 200;
 const int numberTaks = 9;
 
 
