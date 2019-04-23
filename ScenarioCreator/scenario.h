@@ -12,19 +12,88 @@
 #include <iostream>
 #include <cmath>
 #include <fstream>
+#include <sstream>
 #include "keyboard.h"
 
 #pragma comment (lib,"Gdiplus.lib")
 
 
+template<typename ValueType>
+class Parameters {
+public:
+	Parameters(const std::string& config_file) :config_file_(config_file) {};
+	Parameters() = default;
+
+	void registerParam(const std::string& key) {
+
+		std::ifstream c_file(this->config_file_);
+		if (c_file.is_open()) {
+			std::string line;
+			while (std::getline(c_file, line))
+			{
+				// remove spaces from actual line
+				line.erase(std::remove_if(line.begin(), line.end(), isspace),
+					line.end());
+				// parse comment or empty line
+				if (line[0] == '#' || line.empty()) {
+					continue;
+				}
+				const auto del_pos = line.find(":");
+				const auto act_key = line.substr(0, del_pos);
+				if (act_key.compare(key) == 0) {
+					// convert key to templated type
+					parameters_[key] = convertKey<ValueType>(line.substr(del_pos + 1));
+					return;
+				}
+			}
+		}
+		else {
+			throw std::invalid_argument("The speficied Parameterfile " + config_file_ + " does not exist!");
+		}
+
+		// This line should never be reached
+		throw std::invalid_argument("The Parameter " + key + " does not exist! Check Parameterfile!");
+	};
+
+	ValueType getParam(const std::string& key) {
+		if (this->parameters_.find(key) == this->parameters_.end()) {
+			throw std::invalid_argument("Key " + key + "is not registered! Check its name and value type!");
+		}
+		return parameters_[key];
+	};
+
+private:
+	std::map<std::string, ValueType> parameters_;
+	const std::string config_file_;
+
+	template<typename ValueType>
+	ValueType convertKey(const std::string& key) const {
+		std::stringstream converter(key);
+		ValueType value;
+		converter >> value;
+		return value;
+	};
+
+	// explicit specialization is needed for strings
+	template<>
+	std::string convertKey<std::string>(const std::string& key) const {
+		const std::string value = key;
+		return value;
+	}
+
+
+};
+
+
 class ScenarioCreator
 {
 public:
-	ScenarioCreator();
+	ScenarioCreator(const std::string& parameters_file = "param/parameters.txt");
 	void update();
 	~ScenarioCreator();
 
 private:
+	Parameters<std::string> string_params_;
 	Player player;
 	Ped playerPed;
 	std::string line;								// string use the safe the fram data-line
@@ -42,6 +111,8 @@ private:
 	int captureFreq;
 	int joint_int_codes[22];
 
+	std::string files_path_;
+
 	HWND hWnd;
 	HDC hWindowDC;
 	HDC hCaptureDC;
@@ -56,6 +127,7 @@ private:
 
 	CLSID pngClsid;
 
+	void registerParams();
 	void cameraCoords();										// function used to show the camera coordinates
 	void spawn_peds(Vector3 spawnAreaCenter, int numPed);		// function used to spawn pedestrians at the beginning of the scenario
 	void listen_for_keystrokes();								// function used for keyboard input
@@ -73,9 +145,11 @@ private:
 	void cancelLastLog();
 	void loadFile();
 
-	void draw_text(char *text, float x, float y, float scale);
+	void draw_text(char *text , float x, float y, float scale);
 
 	bool keyboard_flag;
+
+	const std::string scenario_file_param_name_ = "scenario_file";
 };
 
 int GetEncoderClsid(const WCHAR* format, CLSID* pClsid);

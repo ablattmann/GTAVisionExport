@@ -15,7 +15,7 @@ int logLenght = 100;
 char *logString = (char*)malloc(logLenght * sizeof(char));
 
 FILE *f;
-const char *filesPath = "JTA-Scenarios\\";
+//const char *filesPath = "JTA-Scenarios\\";
 char fileName[20] = "None";
 int nFiles = 0, currentFile = 1;
 
@@ -139,7 +139,7 @@ int activeLineIndexFile = 0;
 
 bool wind = false;
 
-void update_status_text()
+inline void update_status_text()
 {
 	if (GetTickCount() < statusTextDrawTicksMax)
 	{
@@ -163,14 +163,14 @@ void update_status_text()
 	}
 }
 
-void set_status_text(std::string str, DWORD time = 2000, bool isGxtEntry = false)
+inline void set_status_text(std::string str, DWORD time = 2000, bool isGxtEntry = false)
 {
 	statusText = str;
 	statusTextDrawTicksMax = GetTickCount() + time;
 	statusTextGxtEntry = isGxtEntry;
 }
 
-void firstOpen()
+inline void firstOpen(const std::string& files_path)
 {
 	Player mainPlayer = PLAYER::PLAYER_ID();
 	PLAYER::SET_PLAYER_INVINCIBLE(mainPlayer, TRUE);
@@ -192,16 +192,16 @@ void firstOpen()
 	goTo.x += 2; goTo.y += 2;
 	srand((unsigned int)time(NULL));
 	strcpy(logString, "");
-	_mkdir(filesPath);
+	_mkdir(files_path.c_str());
 	firstTime = false;
 }
 
-void draw_rect(float A_0, float A_1, float A_2, float A_3, int A_4, int A_5, int A_6, int A_7)
+inline void draw_rect(float A_0, float A_1, float A_2, float A_3, int A_4, int A_5, int A_6, int A_7)
 {
 	GRAPHICS::DRAW_RECT((A_0 + (A_2 * 0.5f)), (A_1 + (A_3 * 0.5f)), A_2, A_3, A_4, A_5, A_6, A_7);
 }
 
-void draw_menu_line(std::string caption, float lineWidth, float lineHeight, float lineTop, float lineLeft, float textLeft, bool active, bool title, bool rescaleText = true)
+inline void draw_menu_line(std::string caption, float lineWidth, float lineHeight, float lineTop, float lineLeft, float textLeft, bool active, bool title, bool rescaleText = true)
 {
 	// default values
 	int text_col[4] = { 255, 255, 255, 255 },
@@ -284,7 +284,7 @@ Cam lockCam(Vector3 pos, Vector3 rot) {
 	return lockedCam;
 }
 
-void camLockChange()
+inline void camLockChange()
 {
 	if (camLock) {
 		CAM::RENDER_SCRIPT_CAMS(0, 0, 3000, 1, 0);
@@ -300,18 +300,15 @@ void camLockChange()
 	}
 }
 
-void saveFile()
+inline void saveFile(const std::string& files_path)
 {
-
-	// FIXME add current weather conditions etc here in order to be able to reload all and  start etracting 
-	// the exact scene that's been recently showed when loading the scenario in the DatasetAnnotator
 	std::string fname = "";
 	int stop = 0;
 
 	if (stopCoords)
 		stop = 1;
 
-	fname = fname + std::string(filesPath) + std::string(fileName);
+	fname = fname + std::string(files_path) + std::string(fileName);
 	f = fopen(fname.c_str(), "w");
 
 	// camera parameters and whether moving or not
@@ -323,8 +320,8 @@ void saveFile()
 	fprintf_s(f, "%f %f %f %f %f %f\n", TP1.x, TP1.y, TP1.z, TP1_rot.x, TP1_rot.y, TP1_rot.z);
 	fprintf_s(f, "%f %f %f %f %f %f\n", TP2.x, TP2.y, TP2.z, TP2_rot.x, TP2_rot.y, TP2_rot.z);
 
-	// store actual weather and wind 
-	fprintf_s(f, "%d %s\n", static_cast<int>(wind), weather);
+	// store actual weather and wind FIXME weather not saved in log file
+	fprintf_s(f, "%d %s\n", static_cast<int>(wind), weather.c_str());
 	
 	//also write current time
 	const auto hours = TIME::GET_CLOCK_HOURS();
@@ -332,7 +329,7 @@ void saveFile()
 	const auto secs = TIME::GET_CLOCK_SECONDS();
 	fprintf_s(f, "%d %d %d\n", hours, minutes, secs);
 
-
+	// logString saves the information about pedestrians
 	fprintf_s(f, "%s", logString);
 	fclose(f);
 
@@ -340,7 +337,7 @@ void saveFile()
 	set_status_text(fname);
 }
 
-int readLine(FILE *f, Vector3 *pos)
+inline int readLine(FILE *f, Vector3 *pos)
 {
 	int ngroup = 0;
 	int result = fscanf_s(f, "%d %f %f %f %d %d %f %f %f %f %f %f %f %d %d %d %d %d %d \n", &nPeds, &(*pos).x, &(*pos).y, &(*pos).z, &ngroup, &currentBehaviour, &speed, &goFrom.x, &goFrom.y, &goFrom.z, &goTo.x, &goTo.y, &goTo.z, &paramsLines[0].param, &paramsLines[1].param, &paramsLines[2].param, &paramsLines[3].param, &paramsLines[4].param, &paramsLines[5].param);
@@ -354,24 +351,24 @@ int readLine(FILE *f, Vector3 *pos)
 	return result;
 }
 
-bool file_exist(std::string fileName)
+inline bool file_exist(std::string fileName)
 {
 	std::ifstream infile(fileName);
 	return infile.good();
 }
 
-void readDirr() {
+inline void readDirr(const std::string& files_path) {
 	int i = 0;
 	std::string s;
 	do {
 		i++;
-		s = std::string(filesPath) + "log_" + std::to_string(i) + ".txt";
+		s = files_path + "log_" + std::to_string(i) + ".txt";
 		
 	} while (file_exist(s));
 	nFiles = i - 1;
 }
 
-void addwPed(Ped p, Vector3 from, Vector3 to, int stop, float spd)
+inline void addwPed(Ped p, Vector3 from, Vector3 to, int stop, float spd)
 {
 	if (nwPeds > 199)
 		return;
@@ -410,7 +407,7 @@ void writeLogLine(float x, float y, float z)
 	strcat(logString, line);
 }
 
-ScenarioCreator::ScenarioCreator() {
+ScenarioCreator::ScenarioCreator(const std::string& parameters_file):string_params_(parameters_file) {
 	PLAYER::SET_EVERYONE_IGNORE_PLAYER(PLAYER::PLAYER_PED_ID(), TRUE);
 	PLAYER::SET_POLICE_IGNORE_PLAYER(PLAYER::PLAYER_PED_ID(), TRUE);
 	PLAYER::CLEAR_PLAYER_WANTED_LEVEL(PLAYER::PLAYER_PED_ID());
@@ -418,6 +415,19 @@ ScenarioCreator::ScenarioCreator() {
 	ENTITY::SET_ENTITY_VISIBLE(PLAYER::PLAYER_PED_ID(), TRUE, FALSE);
 	ENTITY::SET_ENTITY_ALPHA(PLAYER::PLAYER_PED_ID(), 255, FALSE);
 	ENTITY::SET_ENTITY_CAN_BE_DAMAGED(PLAYER::PLAYER_PED_ID(), FALSE);
+
+	registerParams();
+
+	this->files_path_ = string_params_.getParam(this->scenario_file_param_name_) + "\\";
+
+
+	const std::string debug_string = "Files path is \"" + this->files_path_ + "\"";
+	char * debug_c_str = new char[debug_string.size() + 1];
+	std::strcpy(debug_c_str, debug_string.c_str());
+	// FIXME text does not appear on screen, can be either caused by empty string or by false window and scale (i.e. coordinates)
+	draw_text(debug_c_str, 0.978f, 0.205f, 0.3f);
+	delete[] debug_c_str;
+
 
 	GAMEPLAY::SET_TIME_SCALE(1.0);
 
@@ -471,7 +481,7 @@ void ScenarioCreator::listen_for_keystrokes() {
 	if (IsKeyJustUp(VK_F5)) {
 		Player mainPlayer = PLAYER::PLAYER_ID();
 		if (firstTime){
-			firstOpen();
+			firstOpen(files_path_);
 		}
 		PLAYER::CLEAR_PLAYER_WANTED_LEVEL(mainPlayer);
 		if (!menuActive)
@@ -516,6 +526,11 @@ void ScenarioCreator::listen_for_keystrokes() {
 			set_status_text(message);
 		}
 	}
+}
+
+void ScenarioCreator::registerParams()
+{
+	string_params_.registerParam(this->scenario_file_param_name_);
 }
 
 void ScenarioCreator::cameraCoords()
@@ -1691,7 +1706,7 @@ void ScenarioCreator::walking_peds()
 void ScenarioCreator::loadFile()
 {
 	char fname[50] = "";
-	strcat(fname, filesPath);
+	strcat(fname, files_path_.c_str());
 	strcat(fname, fileName);
 	f = fopen(fname, "r");
 	Vector3 cCoords, cRot;
@@ -1774,7 +1789,7 @@ void ScenarioCreator::file_menu()
 
 		sprintf_s(loadedFile, "file:~y~ %s", fileName);
 
-		readDirr();
+		readDirr(files_path_);
 
 		if (nFiles == 0){
 			strcpy(fileName, "None");
@@ -1815,11 +1830,11 @@ void ScenarioCreator::file_menu()
 				break;
 			case 1:
 				if (strcmp(fileName, "None") != 0)
-					saveFile();
+					saveFile(files_path_);
 				break;
 			case 2:
 				sprintf_s(fileName, "log_%d.txt", nFiles + 1);
-				saveFile();
+				saveFile(files_path_);
 				break;
 			case 3:
 				strcpy(logString, "");
