@@ -1,3 +1,6 @@
-build
+build/CMake*
+build/src/
+build/x64/
+build/*.cmake
 *.exe
 *.dll
