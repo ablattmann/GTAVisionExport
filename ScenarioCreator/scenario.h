@@ -21,8 +21,18 @@
 template<typename ValueType>
 class Parameters {
 public:
-	Parameters(const std::string& config_file) :config_file_(config_file) {};
+	Parameters(const std::string& config_file) :config_file_(config_file),log_file_(std::string(typeid(ValueType).name()) + "_params_log.txt", std::ios::out){
+		// create unique param file name 
+		if (!log_file_.is_open()) {
+			log_file_.open(std::string(typeid(ValueType).name()) + "_params_log.txt", std::ios::out);
+		}	
+	};
+
 	Parameters() = default;
+	
+	~Parameters() {
+		log_file_.close();
+	};
 
 	void registerParam(const std::string& key) {
 
@@ -43,20 +53,28 @@ public:
 				if (act_key.compare(key) == 0) {
 					// convert key to templated type
 					parameters_[key] = convertKey<ValueType>(line.substr(del_pos + 1));
+					const std::string message = "Parameter \"" + key + "\" is registered!\n";
+					log_file_.write(message.c_str(), std::strlen(message.c_str()));
 					return;
 				}
 			}
 		}
 		else {
+			const std::string message = "Error: The speficied Parameterfile " + config_file_ + " does not exist!\n";
+			log_file_.write(message.c_str(), std::strlen(message.c_str()));
 			throw std::invalid_argument("The speficied Parameterfile " + config_file_ + " does not exist!");
 		}
 
 		// This line should never be reached
+		const std::string message = "Error: The Key " + key + " does not exist!\n";
+		log_file_.write(message.c_str(),std::strlen(message.c_str()));
 		throw std::invalid_argument("The Parameter " + key + " does not exist! Check Parameterfile!");
 	};
 
 	ValueType getParam(const std::string& key) {
 		if (this->parameters_.find(key) == this->parameters_.end()) {
+			const std::string message = "Error: The Key " + key + " is not registered!\n";
+			log_file_.write(message.c_str(),std::strlen(message.c_str()));
 			throw std::invalid_argument("Key " + key + "is not registered! Check its name and value type!");
 		}
 		return parameters_[key];
@@ -65,6 +83,7 @@ public:
 private:
 	std::map<std::string, ValueType> parameters_;
 	const std::string config_file_;
+	std::ofstream log_file_;
 
 	template<typename ValueType>
 	ValueType convertKey(const std::string& key) const {
@@ -112,6 +131,7 @@ private:
 	int joint_int_codes[22];
 
 	std::string files_path_;
+	std::string default_weather_;
 
 	HWND hWnd;
 	HDC hWindowDC;
@@ -150,6 +170,7 @@ private:
 	bool keyboard_flag;
 
 	const std::string scenario_file_param_name_ = "scenario_file";
+	const std::string def_weather_param_name_ = "default_weather_name";
 };
 
 int GetEncoderClsid(const WCHAR* format, CLSID* pClsid);

@@ -300,8 +300,37 @@ inline void camLockChange()
 	}
 }
 
-inline void saveFile(const std::string& files_path)
-{
+//inline void drawText(char *text, float x, float y, float scale) {
+//	UI::SET_TEXT_FONT(0);
+//	UI::SET_TEXT_SCALE(scale, scale);
+//	UI::SET_TEXT_COLOUR(255, 255, 255, 245);
+//	UI::SET_TEXT_WRAP(0.0, 1.0);
+//	UI::SET_TEXT_CENTRE(1);
+//	UI::SET_TEXT_DROPSHADOW(2, 2, 0, 0, 0);
+//	UI::SET_TEXT_EDGE(1, 0, 0, 0, 205);
+//	UI::_SET_TEXT_ENTRY((char*)"STRING");
+//	UI::_ADD_TEXT_COMPONENT_STRING(text);
+//	UI::_DRAW_TEXT(y, x);
+//}
+//
+//inline void writeDebugText(const std::string& text, const std::string& path_spec) {
+//	const std::string debug_string = path_spec + " is \"" + text + "\"";
+//	char * debug_c_str = new char[debug_string.size() + 1];
+//	std::strcpy(debug_c_str, debug_string.c_str());
+//	// show for 3 seconds before contuniuing
+//	DWORD max_time = 3000;
+//	DWORD end_time = GetTickCount() + max_time;
+//
+//	do {
+//		drawText(debug_c_str, 0.8f, 0.8f, 0.5f);
+//	} while (GetTickCount() < end_time);
+//	
+//	delete[] debug_c_str;
+//}
+
+inline void saveFile(const std::string& files_path, const std::string& def_weather)
+{	
+
 	std::string fname = "";
 	int stop = 0;
 
@@ -309,6 +338,7 @@ inline void saveFile(const std::string& files_path)
 		stop = 1;
 
 	fname = fname + std::string(files_path) + std::string(fileName);
+	
 	f = fopen(fname.c_str(), "w");
 
 	// camera parameters and whether moving or not
@@ -320,7 +350,18 @@ inline void saveFile(const std::string& files_path)
 	fprintf_s(f, "%f %f %f %f %f %f\n", TP1.x, TP1.y, TP1.z, TP1_rot.x, TP1_rot.y, TP1_rot.z);
 	fprintf_s(f, "%f %f %f %f %f %f\n", TP2.x, TP2.y, TP2.z, TP2_rot.x, TP2_rot.y, TP2_rot.z);
 
-	// store actual weather and wind FIXME weather not saved in log file
+	// store actual weather and wind 
+	std::string weather_info = "Weather to be stored is " + weather;
+	set_status_text(weather_info);
+	if (weather.empty()) {
+		GAMEPLAY::CLEAR_OVERRIDE_WEATHER();
+		char* info = new char[def_weather.size() + 1];
+		strcpy(info,def_weather.c_str());
+		GAMEPLAY::SET_WEATHER_TYPE_NOW_PERSIST(info);
+		GAMEPLAY::CLEAR_WEATHER_TYPE_PERSIST();
+		weather = def_weather;
+		delete[] info;
+	}
 	fprintf_s(f, "%d %s\n", static_cast<int>(wind), weather.c_str());
 	
 	//also write current time
@@ -407,6 +448,8 @@ void writeLogLine(float x, float y, float z)
 	strcat(logString, line);
 }
 
+
+
 ScenarioCreator::ScenarioCreator(const std::string& parameters_file):string_params_(parameters_file) {
 	PLAYER::SET_EVERYONE_IGNORE_PLAYER(PLAYER::PLAYER_PED_ID(), TRUE);
 	PLAYER::SET_POLICE_IGNORE_PLAYER(PLAYER::PLAYER_PED_ID(), TRUE);
@@ -419,14 +462,7 @@ ScenarioCreator::ScenarioCreator(const std::string& parameters_file):string_para
 	registerParams();
 
 	this->files_path_ = string_params_.getParam(this->scenario_file_param_name_) + "\\";
-
-
-	const std::string debug_string = "Files path is \"" + this->files_path_ + "\"";
-	char * debug_c_str = new char[debug_string.size() + 1];
-	std::strcpy(debug_c_str, debug_string.c_str());
-	// FIXME text does not appear on screen, can be either caused by empty string or by false window and scale (i.e. coordinates)
-	draw_text(debug_c_str, 0.978f, 0.205f, 0.3f);
-	delete[] debug_c_str;
+	this->default_weather_ = string_params_.getParam(this->def_weather_param_name_);
 
 
 	GAMEPLAY::SET_TIME_SCALE(1.0);
@@ -439,6 +475,7 @@ ScenarioCreator::~ScenarioCreator() {
 	ReleaseDC(hWnd, hWindowDC);
 	DeleteDC(hCaptureDC);
 	DeleteObject(hCaptureBitmap);
+	//log_file.close();
 }
 
 void ScenarioCreator::update() {
@@ -531,6 +568,7 @@ void ScenarioCreator::listen_for_keystrokes() {
 void ScenarioCreator::registerParams()
 {
 	string_params_.registerParam(this->scenario_file_param_name_);
+	string_params_.registerParam(this->def_weather_param_name_);
 }
 
 void ScenarioCreator::cameraCoords()
@@ -1830,11 +1868,11 @@ void ScenarioCreator::file_menu()
 				break;
 			case 1:
 				if (strcmp(fileName, "None") != 0)
-					saveFile(files_path_);
+					saveFile(files_path_,default_weather_);
 				break;
 			case 2:
 				sprintf_s(fileName, "log_%d.txt", nFiles + 1);
-				saveFile(files_path_);
+				saveFile(files_path_, default_weather_);
 				break;
 			case 3:
 				strcpy(logString, "");
@@ -1900,7 +1938,7 @@ void ScenarioCreator::draw_text(char *text, float x, float y, float scale) {
 	UI::SET_TEXT_SCALE(scale, scale);
 	UI::SET_TEXT_COLOUR(255, 255, 255, 245);
 	UI::SET_TEXT_WRAP(0.0, 1.0);
-	UI::SET_TEXT_CENTRE(0);
+	UI::SET_TEXT_CENTRE(1);
 	UI::SET_TEXT_DROPSHADOW(2, 2, 0, 0, 0);
 	UI::SET_TEXT_EDGE(1, 0, 0, 0, 205);
 	UI::_SET_TEXT_ENTRY((char*)"STRING");
