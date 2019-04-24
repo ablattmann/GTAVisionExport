@@ -1,3 +1,0 @@
-output_file: test_out
-scenario_file: test_scen
-max_nr_frames: 1000
