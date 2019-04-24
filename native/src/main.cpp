@@ -76,7 +76,10 @@ const std::string parameters_file = "param/parameters.txt";
 const int KEYS_SIZE = 255;
 const int NOW_PERIOD = 100, MAX_DOWN = 5000; // ms
 
-// FIXME add real paths here
+// FIXME make a read-function for the annotator in order not to require updating it every time
+// the read-function will be called everytime , a new record is started
+// FIXME add also a reset function, if required, that resets some states, here's a need of some more information
+// FIXME the constructor should only initialize some required ressources, that will last for the entire time, it lives
 static std::unique_ptr<DatasetAnnotator> annotator = std::make_unique<DatasetAnnotator>(parameters_file, false);
 
 

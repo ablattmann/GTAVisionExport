@@ -833,7 +833,11 @@ void DatasetAnnotator::loadScenario(const char* fname)
 	fscanf_s(f, "%d %s\n", &wind, weather);
 	fscanf_s(f, "%d %d %d\n", &time_h, &time_m, &time_s);
 
-	//FIXME add wind if required
+	if (static_cast<bool>(wind)) {
+		GAMEPLAY::SET_WIND(1.0);
+		GAMEPLAY::SET_WIND_SPEED(11.99f);
+		GAMEPLAY::SET_WIND_DIRECTION(ENTITY::GET_ENTITY_HEADING(PLAYER::PLAYER_PED_ID()));
+	}
 
 	TIME::SET_CLOCK_TIME(time_h, time_m, time_s);
 
@@ -842,8 +846,8 @@ void DatasetAnnotator::loadScenario(const char* fname)
 	// FIXME check if this works or if game crashes because 
 	char * act_weather = new char[weather.size()+1];
 	std::strcpy(act_weather, weather.c_str());
-	GAMEPLAY::SET_OVERRIDE_WEATHER(act_weather);
-	GAMEPLAY::SET_WEATHER_TYPE_NOW(act_weather);
+	GAMEPLAY::SET_WEATHER_TYPE_NOW_PERSIST(act_weather);
+	GAMEPLAY::CLEAR_WEATHER_TYPE_PERSIST();
 	delete[] act_weather;
 
 
