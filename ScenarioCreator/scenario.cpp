@@ -163,7 +163,7 @@ inline void update_status_text()
 	}
 }
 
-inline void set_status_text(std::string str, DWORD time = 2000, bool isGxtEntry = false)
+void set_status_text(std::string str, DWORD time = 2000, bool isGxtEntry = false)
 {
 	statusText = str;
 	statusTextDrawTicksMax = GetTickCount() + time;

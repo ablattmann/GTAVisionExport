@@ -4,13 +4,15 @@
 #include <vector>
 #include <direct.h>
 #include <string.h>
-#include <filesystem>
+#include <experimental/filesystem>
 #include <string>
 
 #define _USE_MATH_DEFINES
 #include <math.h>
 #include <time.h>
 #include <list>
+
+namespace fs = std::experimental::filesystem;
 
 #define SCREEN_WIDTH 1920
 #define SCREEN_HEIGHT 1080
@@ -37,6 +39,10 @@ static char scenarioTypes[14][40]{
 	"WORLD_HUMAN_MUSCLE_FLEX",
 	"WORLD_HUMAN_YOGA"
 };
+
+std::string statusText;
+DWORD statusTextDrawTicksMax;
+bool statusTextGxtEntry;
 
 float random_float(float min, float max) {
 	return min + static_cast <float> (rand()) / (static_cast <float> (RAND_MAX / (max - min)));
@@ -93,14 +99,56 @@ int StringToWString(std::wstring &ws, const std::string &s)
 	return 0;
 }
 
+inline std::vector<std::string> splitString(const std::string& s, char delimiter) {
+	std::vector<std::string> tokens;
+	std::string token;
+	std::istringstream token_stream(s);
+	while (std::getline(token_stream, token, delimiter)) {
+		tokens.push_back(token);
+	}
+	return tokens;
+}
+
+inline void set_status_text(const std::string& str, DWORD time = 2000, bool isGxtEntry = false)
+{
+	statusText = str;
+	statusTextDrawTicksMax = GetTickCount() + time;
+	statusTextGxtEntry = isGxtEntry;
+}
+
+inline void update_status_text()
+{
+	if (GetTickCount() < statusTextDrawTicksMax)
+	{
+		UI::SET_TEXT_FONT(0);
+		UI::SET_TEXT_SCALE(0.55f, 0.55f);
+		UI::SET_TEXT_COLOUR(255, 255, 255, 255);
+		UI::SET_TEXT_WRAP(0.0, 1.0);
+		UI::SET_TEXT_CENTRE(1);
+		UI::SET_TEXT_DROPSHADOW(0, 0, 0, 0, 0);
+		UI::SET_TEXT_EDGE(1, 0, 0, 0, 205);
+		if (statusTextGxtEntry)
+		{
+			UI::_SET_TEXT_ENTRY((char *)statusText.c_str());
+		}
+		else
+		{
+			UI::_SET_TEXT_ENTRY((char*)"STRING");
+			UI::_ADD_TEXT_COMPONENT_STRING((char *)statusText.c_str());
+		}
+		UI::_DRAW_TEXT(0.5f, 0.1f);
+	}
+}
+
 DatasetAnnotator::DatasetAnnotator(std::string config_file, int _is_night)
 	:int_params_(config_file),
 	float_params_(config_file),
 	string_params_(config_file)
 {	
 	// register parameters
-	registerParams();
-	PLAYER::SET_EVERYONE_IGNORE_PLAYER(PLAYER::PLAYER_PED_ID(), TRUE);
+	this->registerParams();
+	
+	/*PLAYER::SET_EVERYONE_IGNORE_PLAYER(PLAYER::PLAYER_PED_ID(), TRUE);
 	PLAYER::SET_POLICE_IGNORE_PLAYER(PLAYER::PLAYER_PED_ID(), TRUE);
 	PLAYER::CLEAR_PLAYER_WANTED_LEVEL(PLAYER::PLAYER_PED_ID());
 	ENTITY::SET_ENTITY_COLLISION(PLAYER::PLAYER_PED_ID(), TRUE, TRUE);
@@ -108,14 +156,22 @@ DatasetAnnotator::DatasetAnnotator(std::string config_file, int _is_night)
 	ENTITY::SET_ENTITY_ALPHA(PLAYER::PLAYER_PED_ID(), 255, FALSE);
 	ENTITY::SET_ENTITY_CAN_BE_DAMAGED(PLAYER::PLAYER_PED_ID(), FALSE);
 
-	GAMEPLAY::SET_TIME_SCALE(1);
+	GAMEPLAY::SET_TIME_SCALE(1);*/
 
+	// this is the name of the source for all the recorded sequences
 	this->output_path = string_params_.getParam(this->output_file_param_name_);
-	this->file_scenario = string_params_.getParam(this->scenario_file_param_name_).c_str();
+	this->output_path.append("/");
+	// this is the name for the source of the saved scenario files by the scenario creator
+	this->file_scenarios_path = string_params_.getParam(this->scenario_file_param_name_);
+	this->file_scenarios_path.append("/");
+	// store all the scnearios avalable in the scenario_names_map
+	readInScenarios();
+
 	this->max_samples = int_params_.getParam(this->max_samples_param_name_);
+	this->default_weather_ = string_params_.getParam(this->default_weather_param_name_);
 	this->is_night = _is_night;
 
-	srand((unsigned int)time(NULL)); //Initialises randomiser or sum' like that
+	//srand((unsigned int)time(NULL)); //Initialises randomiser or sum' like that
 
 	this->bad_scenarios = {
 		"WORLD_BOAR_GRAZING",
@@ -156,16 +212,16 @@ DatasetAnnotator::DatasetAnnotator(std::string config_file, int _is_night)
 		"PROP_BIRD_TELEGRAPH_POLE"
 	};
 
-	joint_int_codes[0]  = m.find("SKEL_Head")->second;
-	joint_int_codes[1]  = m.find("SKEL_Neck_1")->second;
-	joint_int_codes[2]  = m.find("SKEL_R_Clavicle")->second;
-	joint_int_codes[3]  = m.find("SKEL_R_UpperArm")->second;
-	joint_int_codes[4]  = m.find("SKEL_R_Forearm")->second;
-	joint_int_codes[5]  = m.find("SKEL_R_Hand")->second;
-	joint_int_codes[6]  = m.find("SKEL_L_Clavicle")->second;
-	joint_int_codes[7]  = m.find("SKEL_L_UpperArm")->second;
-	joint_int_codes[8]  = m.find("SKEL_L_Forearm")->second;
-	joint_int_codes[9]  = m.find("SKEL_L_Hand")->second;
+	/*joint_int_codes[0] = m.find("SKEL_Head")->second;
+	joint_int_codes[1] = m.find("SKEL_Neck_1")->second;
+	joint_int_codes[2] = m.find("SKEL_R_Clavicle")->second;
+	joint_int_codes[3] = m.find("SKEL_R_UpperArm")->second;
+	joint_int_codes[4] = m.find("SKEL_R_Forearm")->second;
+	joint_int_codes[5] = m.find("SKEL_R_Hand")->second;
+	joint_int_codes[6] = m.find("SKEL_L_Clavicle")->second;
+	joint_int_codes[7] = m.find("SKEL_L_UpperArm")->second;
+	joint_int_codes[8] = m.find("SKEL_L_Forearm")->second;
+	joint_int_codes[9] = m.find("SKEL_L_Hand")->second;
 	joint_int_codes[10] = m.find("SKEL_Spine3")->second;
 	joint_int_codes[11] = m.find("SKEL_Spine2")->second;
 	joint_int_codes[12] = m.find("SKEL_Spine1")->second;
@@ -177,9 +233,10 @@ DatasetAnnotator::DatasetAnnotator(std::string config_file, int _is_night)
 	joint_int_codes[18] = m.find("SKEL_L_Thigh")->second;
 	joint_int_codes[19] = m.find("SKEL_L_Calf")->second;
 	joint_int_codes[20] = m.find("SKEL_L_Foot")->second;
-
+*/
+	// fixme this has to be  part of the load_scenario routine
 	// inizialize the coords_file used to storage coords data
-	log_file.open(output_path + "\\log.txt");
+	/*log_file.open(output_path + "\\log.txt");
 	coords_file.open(output_path + "\\coords.csv");
 	coords_file << "frame,pedestrian_id,joint_type,2D_x,2D_y,3D_x,3D_y,3D_z,occluded,self_occluded,";
 	coords_file << "cam_3D_x,cam_3D_y,cam_3D_z,cam_rot_x,cam_rot_y,cam_rot_z,fov\n";
@@ -187,7 +244,10 @@ DatasetAnnotator::DatasetAnnotator(std::string config_file, int _is_night)
 	this->player = PLAYER::PLAYER_ID();
 	this->playerPed = PLAYER::PLAYER_PED_ID();
 	this->line = "";
-	this->log = "";
+	this->log = "";*/
+
+
+
 	this->captureFreq = (int)(FPS / TIME_FACTOR);
 	this->SHOW_JOINT_RECT = DISPLAY_FLAG;
 
@@ -256,68 +316,83 @@ DatasetAnnotator::DatasetAnnotator(std::string config_file, int _is_night)
 	//GAMEPLAY::SET_OVERRIDE_WEATHER(weather);
 	//GAMEPLAY::SET_WEATHER_TYPE_NOW(weather);
 
-	loadScenario(file_scenario);
+	/*loadScenario(file_scenario);*/
 
-	//Screen capture buffer
-	GRAPHICS::_GET_SCREEN_ACTIVE_RESOLUTION(&windowWidth, &windowHeight);
-	hWnd = ::FindWindow(NULL, "Compatitibility Theft Auto V");
-	hWindowDC = GetDC(hWnd);
-	hCaptureDC = CreateCompatibleDC(hWindowDC);
-	hCaptureBitmap = CreateCompatibleBitmap(hWindowDC, SCREEN_WIDTH, SCREEN_HEIGHT);
-	SelectObject(hCaptureDC, hCaptureBitmap);
-	SetStretchBltMode(hCaptureDC, COLORONCOLOR);
+	////Screen capture buffer
+	//GRAPHICS::_GET_SCREEN_ACTIVE_RESOLUTION(&windowWidth, &windowHeight);
+	//hWnd = ::FindWindow(NULL, "Compatitibility Theft Auto V");
+	//hWindowDC = GetDC(hWnd);
+	//hCaptureDC = CreateCompatibleDC(hWindowDC);
+	//hCaptureBitmap = CreateCompatibleBitmap(hWindowDC, SCREEN_WIDTH, SCREEN_HEIGHT);
+	//SelectObject(hCaptureDC, hCaptureBitmap);
+	//SetStretchBltMode(hCaptureDC, COLORONCOLOR);
 
-	// used to decide how often save the sample
-	recordingPeriod = 1.0f / captureFreq;
+	//// used to decide how often save the sample
+	//recordingPeriod = 1.0f / captureFreq;
 
-	// initialize recording stuff
-	Gdiplus::GdiplusStartupInput gdiplusStartupInput;
-	ULONG_PTR gdiplusToken;
-	GdiplusStartup(&gdiplusToken, &gdiplusStartupInput, NULL);
-	GetEncoderClsid(L"image/jpeg", &pngClsid);
+	//// initialize recording stuff
+	//Gdiplus::GdiplusStartupInput gdiplusStartupInput;
+	//ULONG_PTR gdiplusToken;
+	//GdiplusStartup(&gdiplusToken, &gdiplusStartupInput, NULL);
+	//GetEncoderClsid(L"image/jpeg", &pngClsid);
 
-	// inizialize the int used to count the saved frame
-	nsample = 0;
+	//// fixme this has to be used in the reset and load scenario methods
+	//// inizialize the int used to count the saved frame
+	//nsample = 0;
 
-	//Avoid bad things such as getting killed by the police, robbed, dying in car accidents or other horrible stuff
-	PLAYER::SET_EVERYONE_IGNORE_PLAYER(player, TRUE);
-	PLAYER::SET_POLICE_IGNORE_PLAYER(player, TRUE);
-	PLAYER::CLEAR_PLAYER_WANTED_LEVEL(player);
+	////Avoid bad things such as getting killed by the police, robbed, dying in car accidents or other horrible stuff
+	//PLAYER::SET_EVERYONE_IGNORE_PLAYER(player, TRUE);
+	//PLAYER::SET_POLICE_IGNORE_PLAYER(player, TRUE);
+	//PLAYER::CLEAR_PLAYER_WANTED_LEVEL(player);
 
-	PLAYER::SET_PLAYER_INVINCIBLE(player, TRUE);
-	PLAYER::SPECIAL_ABILITY_FILL_METER(player, 1);
-	PLAYER::SET_PLAYER_NOISE_MULTIPLIER(player, 0.0);
-	PLAYER::SET_SWIM_MULTIPLIER_FOR_PLAYER(player, 1.49f);
-	PLAYER::SET_RUN_SPRINT_MULTIPLIER_FOR_PLAYER(player, 1.49f);
-	PLAYER::DISABLE_PLAYER_FIRING(player, TRUE);
-	PLAYER::SET_DISABLE_AMBIENT_MELEE_MOVE(player, TRUE);
+	//PLAYER::SET_PLAYER_INVINCIBLE(player, TRUE);
+	//PLAYER::SPECIAL_ABILITY_FILL_METER(player, 1);
+	//PLAYER::SET_PLAYER_NOISE_MULTIPLIER(player, 0.0);
+	//PLAYER::SET_SWIM_MULTIPLIER_FOR_PLAYER(player, 1.49f);
+	//PLAYER::SET_RUN_SPRINT_MULTIPLIER_FOR_PLAYER(player, 1.49f);
+	//PLAYER::DISABLE_PLAYER_FIRING(player, TRUE);
+	//PLAYER::SET_DISABLE_AMBIENT_MELEE_MOVE(player, TRUE);
 
-	// invisible and intangible player
-	/*ENTITY::SET_ENTITY_COLLISION(PLAYER::PLAYER_PED_ID(), TRUE, TRUE);
-	ENTITY::SET_ENTITY_VISIBLE(PLAYER::PLAYER_PED_ID(), FALSE, FALSE);
-	ENTITY::SET_ENTITY_ALPHA(PLAYER::PLAYER_PED_ID(), 0.0, TRUE);*/
-	if (moving)
-		ENTITY::SET_ENTITY_COLLISION(PLAYER::PLAYER_PED_ID(), TRUE, TRUE);
-	else
-		ENTITY::SET_ENTITY_COLLISION(PLAYER::PLAYER_PED_ID(), FALSE, TRUE);
-	ENTITY::SET_ENTITY_VISIBLE(PLAYER::PLAYER_PED_ID(), FALSE, FALSE);
-	ENTITY::SET_ENTITY_ALPHA(PLAYER::PLAYER_PED_ID(), 0, FALSE);
-	ENTITY::SET_ENTITY_CAN_BE_DAMAGED(PLAYER::PLAYER_PED_ID(), FALSE);
+	//// invisible and intangible player
+	///*ENTITY::SET_ENTITY_COLLISION(PLAYER::PLAYER_PED_ID(), TRUE, TRUE);
+	//ENTITY::SET_ENTITY_VISIBLE(PLAYER::PLAYER_PED_ID(), FALSE, FALSE);
+	//ENTITY::SET_ENTITY_ALPHA(PLAYER::PLAYER_PED_ID(), 0.0, TRUE);*/
+	//if (moving)
+	//	ENTITY::SET_ENTITY_COLLISION(PLAYER::PLAYER_PED_ID(), TRUE, TRUE);
+	//else
+	//	ENTITY::SET_ENTITY_COLLISION(PLAYER::PLAYER_PED_ID(), FALSE, TRUE);
+	//ENTITY::SET_ENTITY_VISIBLE(PLAYER::PLAYER_PED_ID(), FALSE, FALSE);
+	//ENTITY::SET_ENTITY_ALPHA(PLAYER::PLAYER_PED_ID(), 0, FALSE);
+	//ENTITY::SET_ENTITY_CAN_BE_DAMAGED(PLAYER::PLAYER_PED_ID(), FALSE);
 
-	// randomizing number of peds
-	//this->n_peds = random_int(20, 50);
-	//this->n_peds = 20;
+	//// randomizing number of peds
+	////this->n_peds = random_int(20, 50);
+	////this->n_peds = 20;
 
-	// seconds are proportional to number of peds
-	if (DEMO) 
-		this->secondsBeforeSaveImages = 10;
-	else
-		this->secondsBeforeSaveImages = max_waiting_time / 1000 + 10 + 10;
+	//// seconds are proportional to number of peds
+	//if (DEMO) 
+	//	this->secondsBeforeSaveImages = 10;
+	//else
+	//	this->secondsBeforeSaveImages = max_waiting_time / 1000 + 10 + 10;
 
-	lastRecordingTime = std::clock() + (clock_t)((float)(secondsBeforeSaveImages * CLOCKS_PER_SEC));
+	//lastRecordingTime = std::clock() + (clock_t)((float)(secondsBeforeSaveImages * CLOCKS_PER_SEC));
 
 	// spawn pedestrians
 	//Scenario::spawnPed(ped_spawn_pos, n_peds);
+	FILE* log = fopen("setup.log", "w");
+	if (this->output_path.empty()) {
+		fprintf(log, "Output path could not be read!\n");
+	}
+	else {
+		fprintf(log, "The first output path to use: %s\n", this->output_path.c_str());
+	}
+	if (this->file_scenarios_path.empty()) {
+		fprintf(log, "Scenario file path could not be read!\n");
+	}
+	else {
+		fprintf(log, "The path, where the scenarios to load can be found: %s\n", this->file_scenarios_path.c_str());
+	}
+	fclose(log);
 }
 
 DatasetAnnotator::~DatasetAnnotator()
@@ -328,6 +403,14 @@ DatasetAnnotator::~DatasetAnnotator()
 	DeleteObject(hCaptureBitmap);
 	coords_file.close();
 	log_file.close();
+}
+
+void DatasetAnnotator::readInScenarios() {
+	for (const auto& scen_file_name : fs::directory_iterator(file_scenarios_path)) {
+		if (fs::is_regular_file(scen_file_name)) {
+			scenario_names_.insert(scen_file_name.path().string());
+		}
+	}
 }
 
 int DatasetAnnotator::update()
@@ -563,8 +646,9 @@ int DatasetAnnotator::update()
 			}
 		}
 	}
-	save_frame();
+	// increase nsample by one to make sure that patches are aligned
 	nsample++;
+	save_frame();
 	if (nsample == max_samples) {
 		for (int i = 0; i < nwPeds; i++) {
 			PED::DELETE_PED(&wPeds[i].ped);
@@ -575,6 +659,12 @@ int DatasetAnnotator::update()
 	}
 
 	return nsample;
+}
+
+void DatasetAnnotator::drawText(const std::string& text)
+{
+	set_status_text(text, 2000, true);
+	update_status_text();
 }
 
 void DatasetAnnotator::addwPed(Ped p, Vector3 from, Vector3 to, int stop, float spd)
@@ -605,6 +695,7 @@ void DatasetAnnotator::registerParams()
 	//register string params
 	string_params_.registerParam(this->output_file_param_name_);
 	string_params_.registerParam(this->scenario_file_param_name_);
+	string_params_.registerParam(this->default_weather_param_name_);
 
 	// register float params
 
@@ -649,12 +740,16 @@ void DatasetAnnotator::get_2D_from_3D(Vector3 v, float *x2d, float *y2d) {
 }
 
 void DatasetAnnotator::save_frame() {
-	StretchBlt(hCaptureDC, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, hWindowDC, 0, 0, windowWidth, windowHeight, SRCCOPY | CAPTUREBLT);
+	if (!StretchBlt(hCaptureDC, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, hWindowDC, 0, 0, windowWidth, windowHeight, SRCCOPY | CAPTUREBLT)) {
+		auto err = GetLastError();
+		log_file << " StretchBlt returned the following error: " << err << "\n";
+	}
 	Gdiplus::Bitmap image(hCaptureBitmap, (HPALETTE)0);
 	std::wstring ws;
-	StringToWString(ws, output_path);
+	StringToWString(ws, current_output_path);
 
-	image.Save((ws + L"\\" + std::to_wstring(nsample) + L".jpeg").c_str(), &pngClsid, NULL);
+	image.Save((ws + L"\\" + std::to_wstring(nsample) + L".png").c_str(), &pngClsid, NULL);
+	log_file << " Status of saving images is  " << image.GetLastStatus() << "\n";
 }
 
 void DatasetAnnotator::setCameraMoving(Vector3 A, Vector3 B, Vector3 C, int fov) {
@@ -778,19 +873,6 @@ Vector3 DatasetAnnotator::teleportPlayer(Vector3 pos){
 	return pos;
 }
 
-void DatasetAnnotator::drawText(char *text, float x, float y, float scale) {
-	UI::SET_TEXT_FONT(0);
-	UI::SET_TEXT_SCALE(scale, scale);
-	UI::SET_TEXT_COLOUR(255, 255, 255, 245);
-	UI::SET_TEXT_WRAP(0.0, 1.0);
-	UI::SET_TEXT_CENTRE(0);
-	UI::SET_TEXT_DROPSHADOW(2, 2, 0, 0, 0);
-	UI::SET_TEXT_EDGE(1, 0, 0, 0, 205);
-	UI::_SET_TEXT_ENTRY((char *)"STRING");
-	UI::_ADD_TEXT_COMPONENT_STRING(text);
-	UI::_DRAW_TEXT(y, x);
-}
-
 int DatasetAnnotator::myreadLine(FILE *f, Vector3 *pos, int *nPeds, int *ngroup, int *currentBehaviour, float *speed, Vector3 *goFrom, Vector3 *goTo, int *task_time, int *type, 
 	int *radius, int *min_lenght, int *time_between_walks, int *spawning_radius)
 {
@@ -810,9 +892,61 @@ Cam DatasetAnnotator::lockCam(Vector3 pos, Vector3 rot) {
 	return lockedCam;
 }
 
-void DatasetAnnotator::loadScenario(const char* fname)
-{
-	FILE *f = fopen(fname, "r");
+void DatasetAnnotator::loadScenario()
+{	
+	if (scenario_names_.empty()) {
+		set_status_text("Warning: No more scenarios left. Reusing already recorded scenarios from the beginning.");
+		update_status_text();
+		readInScenarios();
+	}
+
+	// read in most actual scenario file name and delete it from the list in orderto avoid doubled entries
+	const std::string actual_name = *scenario_names_.begin();
+	scenario_names_.erase(scenario_names_.begin());
+
+	if (actual_name.find("_") == std::string::npos) {
+		set_status_text("Warning: Specified name of scenarios file is not valid! Skipping and taking the next file.");
+		update_status_text();
+		//fixme add error handling here
+	}
+
+	set_status_text("read in filenames of the scenarios.", 1000, true);
+	update_status_text();
+
+	PLAYER::SET_EVERYONE_IGNORE_PLAYER(PLAYER::PLAYER_PED_ID(), TRUE);
+	PLAYER::SET_POLICE_IGNORE_PLAYER(PLAYER::PLAYER_PED_ID(), TRUE);
+	PLAYER::CLEAR_PLAYER_WANTED_LEVEL(PLAYER::PLAYER_PED_ID());
+	ENTITY::SET_ENTITY_COLLISION(PLAYER::PLAYER_PED_ID(), TRUE, TRUE);
+	ENTITY::SET_ENTITY_VISIBLE(PLAYER::PLAYER_PED_ID(), TRUE, FALSE);
+	ENTITY::SET_ENTITY_ALPHA(PLAYER::PLAYER_PED_ID(), 255, FALSE);
+	ENTITY::SET_ENTITY_CAN_BE_DAMAGED(PLAYER::PLAYER_PED_ID(), FALSE);
+
+	GAMEPLAY::SET_TIME_SCALE(1);
+
+	joint_int_codes[0] = m.find("SKEL_Head")->second;
+	joint_int_codes[1] = m.find("SKEL_Neck_1")->second;
+	joint_int_codes[2] = m.find("SKEL_R_Clavicle")->second;
+	joint_int_codes[3] = m.find("SKEL_R_UpperArm")->second;
+	joint_int_codes[4] = m.find("SKEL_R_Forearm")->second;
+	joint_int_codes[5] = m.find("SKEL_R_Hand")->second;
+	joint_int_codes[6] = m.find("SKEL_L_Clavicle")->second;
+	joint_int_codes[7] = m.find("SKEL_L_UpperArm")->second;
+	joint_int_codes[8] = m.find("SKEL_L_Forearm")->second;
+	joint_int_codes[9] = m.find("SKEL_L_Hand")->second;
+	joint_int_codes[10] = m.find("SKEL_Spine3")->second;
+	joint_int_codes[11] = m.find("SKEL_Spine2")->second;
+	joint_int_codes[12] = m.find("SKEL_Spine1")->second;
+	joint_int_codes[13] = m.find("SKEL_Spine0")->second;
+	joint_int_codes[14] = m.find("SKEL_Spine_Root")->second;
+	joint_int_codes[15] = m.find("SKEL_R_Thigh")->second;
+	joint_int_codes[16] = m.find("SKEL_R_Calf")->second;
+	joint_int_codes[17] = m.find("SKEL_R_Foot")->second;
+	joint_int_codes[18] = m.find("SKEL_L_Thigh")->second;
+	joint_int_codes[19] = m.find("SKEL_L_Calf")->second;
+	joint_int_codes[20] = m.find("SKEL_L_Foot")->second;
+
+	//open actual scenarios file and load the data
+	FILE *f = fopen(actual_name.c_str(), "r");
 	Vector3 cCoords, cRot;
 	Vector3 vTP1, vTP2, vTP1_rot, vTP2_rot;
 	int stop;
@@ -840,16 +974,25 @@ void DatasetAnnotator::loadScenario(const char* fname)
 	}
 
 	TIME::SET_CLOCK_TIME(time_h, time_m, time_s);
+	
+	// set weather to default weather, if not set
+	if (weather.empty()) {
+		weather = this->default_weather_;
+	}
 
 	GAMEPLAY::SET_RANDOM_WEATHER_TYPE();
 	GAMEPLAY::CLEAR_WEATHER_TYPE_PERSIST();
+	GAMEPLAY::SET_OVERRIDE_WEATHER((char *)(weather.c_str()));
+	GAMEPLAY::SET_WEATHER_TYPE_NOW((char *)(weather.c_str()));
 	// FIXME check if this works or if game crashes because 
-	char * act_weather = new char[weather.size()+1];
-	std::strcpy(act_weather, weather.c_str());
-	GAMEPLAY::SET_WEATHER_TYPE_NOW_PERSIST(act_weather);
-	GAMEPLAY::CLEAR_WEATHER_TYPE_PERSIST();
-	delete[] act_weather;
+	/*char * act_weather = new char[weather.size()+1];
+	std::strcpy(act_weather, weather.c_str());*/
+	//GAMEPLAY::SET_WEATHER_TYPE_NOW_PERSIST((char *)(weather.c_str()));
+	//GAMEPLAY::CLEAR_WEATHER_TYPE_PERSIST();
+	//delete[] act_weather;
 
+	set_status_text("Set weather and time!", 1000, true);
+	update_status_text();
 
 	Entity e = PLAYER::PLAYER_PED_ID();
 
@@ -867,6 +1010,9 @@ void DatasetAnnotator::loadScenario(const char* fname)
 		WAIT(3000);
 	else
 		WAIT(10000);
+
+	set_status_text("Teleported cam!", 1000, true);
+	update_status_text();
 
 	/*if (moving == 0)
 		Scenario::teleportPlayer(cCoords);
@@ -907,10 +1053,117 @@ void DatasetAnnotator::loadScenario(const char* fname)
 	}
 	fclose(f);
 
+	set_status_text("Spawned Peds!",1000,true);
+	update_status_text();
+
 	if (moving == 0)
 		DatasetAnnotator::setCameraFixed(cCoords, cRot, 0, fov);
 	else
 		DatasetAnnotator::setCameraMoving(A, B, C, fov);
+
+	// Note: These files have formerly been in the constructor
+	const auto splitted_act_name = splitString(splitString(actual_name, '_').back(),'.').front(); 
+	current_output_path = output_path + "\\seq_" + splitted_act_name;
+	current_output_path = output_path + "\\seq_" + splitted_act_name;
+
+	if (!CreateDirectory(current_output_path.c_str(), NULL) && !ERROR_ALREADY_EXISTS == GetLastError()) {
+		set_status_text("WARNING: Cannot create output directory for some reasons. Check access rights!", 1000, true);
+		update_status_text();
+		// fixme add error handling here
+		return;
+	}
+
+	log_file.open(current_output_path + "\\log.txt");
+	coords_file.open(current_output_path + "\\coords.csv");
+	coords_file << "frame,pedestrian_id,joint_type,2D_x,2D_y,3D_x,3D_y,3D_z,occluded,self_occluded,";
+	coords_file << "cam_3D_x,cam_3D_y,cam_3D_z,cam_rot_x,cam_rot_y,cam_rot_z,fov\n";
+
+	this->player = PLAYER::PLAYER_ID();
+	this->playerPed = PLAYER::PLAYER_PED_ID();
+	this->line = "";
+	this->log = "";
+
+	set_status_text("Initialized Logs!", 1000, true);
+	update_status_text();
+
+	// inizialize the int used to count the saved frame
+	nsample = 0;
+
+	//Avoid bad things such as getting killed by the police, robbed, dying in car accidents or other horrible stuff
+	PLAYER::SET_EVERYONE_IGNORE_PLAYER(player, TRUE);
+	PLAYER::SET_POLICE_IGNORE_PLAYER(player, TRUE);
+	PLAYER::CLEAR_PLAYER_WANTED_LEVEL(player);
+
+	PLAYER::SET_PLAYER_INVINCIBLE(player, TRUE);
+	PLAYER::SPECIAL_ABILITY_FILL_METER(player, 1);
+	PLAYER::SET_PLAYER_NOISE_MULTIPLIER(player, 0.0);
+	PLAYER::SET_SWIM_MULTIPLIER_FOR_PLAYER(player, 1.49f);
+	PLAYER::SET_RUN_SPRINT_MULTIPLIER_FOR_PLAYER(player, 1.49f);
+	PLAYER::DISABLE_PLAYER_FIRING(player, TRUE);
+	PLAYER::SET_DISABLE_AMBIENT_MELEE_MOVE(player, TRUE);
+
+	// invisible and intangible player
+	/*ENTITY::SET_ENTITY_COLLISION(PLAYER::PLAYER_PED_ID(), TRUE, TRUE);
+	ENTITY::SET_ENTITY_VISIBLE(PLAYER::PLAYER_PED_ID(), FALSE, FALSE);
+	ENTITY::SET_ENTITY_ALPHA(PLAYER::PLAYER_PED_ID(), 0.0, TRUE);*/
+	if (moving)
+		ENTITY::SET_ENTITY_COLLISION(PLAYER::PLAYER_PED_ID(), TRUE, TRUE);
+	else
+		ENTITY::SET_ENTITY_COLLISION(PLAYER::PLAYER_PED_ID(), FALSE, TRUE);
+	ENTITY::SET_ENTITY_VISIBLE(PLAYER::PLAYER_PED_ID(), FALSE, FALSE);
+	ENTITY::SET_ENTITY_ALPHA(PLAYER::PLAYER_PED_ID(), 0, FALSE);
+	ENTITY::SET_ENTITY_CAN_BE_DAMAGED(PLAYER::PLAYER_PED_ID(), FALSE);
+
+	// randomizing number of peds
+	//this->n_peds = random_int(20, 50);
+	//this->n_peds = 20;
+
+	// seconds are proportional to number of peds
+	if (DEMO)
+		this->secondsBeforeSaveImages = 10;
+	else
+		this->secondsBeforeSaveImages = max_waiting_time / 1000 + 10 + 10;
+
+	lastRecordingTime = std::clock() + (clock_t)((float)(secondsBeforeSaveImages * CLOCKS_PER_SEC));
+
+	//Screen capture buffer
+	GRAPHICS::_GET_SCREEN_ACTIVE_RESOLUTION(&windowWidth, &windowHeight);
+	log_file << "Widowheight is " << windowHeight << "; Windowwidth is " << windowWidth <<"\n";
+	hWnd = ::FindWindow(NULL, NULL);
+	log_file << "FindWindow returns " << hWnd << "\n";
+	hWindowDC = GetDC(hWnd);
+	log_file << "GetDC returns " << hWindowDC << "\n";
+	hCaptureDC = CreateCompatibleDC(hWindowDC);
+	log_file << "CreateCompatibleDC returns " << hCaptureDC << "\n";
+	hCaptureBitmap = CreateCompatibleBitmap(hWindowDC, SCREEN_WIDTH, SCREEN_HEIGHT);
+	log_file << "CreateCompatibleBitmap returns " << hCaptureBitmap << "\n";
+	SelectObject(hCaptureDC, hCaptureBitmap);
+	auto has_suceeded = SetStretchBltMode(hCaptureDC, COLORONCOLOR);
+	log_file << "the previous color streching mode before setting COLORONCOLOR is " << has_suceeded << "\n";
+
+	// used to decide how often save the sample
+	recordingPeriod = 1.0f / captureFreq;
+
+
+
+	// initialize recording stuff
+	Gdiplus::GdiplusStartupInput gdiplusStartupInput;
+	
+	GdiplusStartup(&gdiplusToken, &gdiplusStartupInput, NULL);
+	GetEncoderClsid(L"image/png", &pngClsid);
+
+	set_status_text("End of LoadScenario Routine!", 1000, true);
+	update_status_text();
+}
+
+void DatasetAnnotator::resetStates()
+{	
+	// reset time scale in order to make the user see that recording has ended
+	GAMEPLAY::SET_TIME_SCALE(1.0f);
+	Gdiplus::GdiplusShutdown(gdiplusToken);
+	set_status_text("Reset Function of Dataset Annotator was called!", 1000, true);
+	update_status_text();
+	// FIXME check if there's something to return here
 }
 
 void DatasetAnnotator::spawn_peds_flow(Vector3 pos, Vector3 goFrom, Vector3 goTo, int npeds, int ngroup, int currentBehaviour, 

@@ -5,6 +5,7 @@
 #include <string>
 #include "dictionary.h"
 #include <vector>
+#include <set>
 #include <cstdlib>
 #include <ctime>
 #include <Windows.h>
@@ -112,9 +113,11 @@ class DatasetAnnotator
 public:
 	DatasetAnnotator(std::string config_file, int _is_night);
 	int update();
-	void drawText(char* text, float x, float y, float scale);
-	std::string getOutputPath() const { return this->output_path; }
+	void drawText(const std::string& text);
+	std::string getOutputPath() const { return this->current_output_path; }
 	int getMaxFrames() const { return this->max_samples; }
+	void loadScenario();
+	void resetStates();
 	~DatasetAnnotator();
 
 private:
@@ -122,6 +125,9 @@ private:
 	Parameters<float> float_params_;
 	Parameters<std::string > string_params_;
 	std::string output_path;
+	std::string current_output_path;
+	std::string default_weather_;
+	std::set<std::string> scenario_names_;
 	int sequence_index;
 	Player player;
 	Ped playerPed;
@@ -139,7 +145,7 @@ private:
 	int max_samples;
 	std::vector<const char*> bad_scenarios; // 36
 	int ped_with_cam;
-	const char* file_scenario;
+	std::string file_scenarios_path;
 	wPed wPeds[max_wpeds];
 	wPed wPeds_scenario[max_wpeds];
 	int nwPeds = 0;
@@ -168,6 +174,7 @@ private:
 	std::ofstream log_file;									// file used to save joints coordinates data
 
 	CLSID pngClsid;
+	ULONG_PTR gdiplusToken;
 
 	void registerParams();
 	void get_2D_from_3D(Vector3 v, float *x, float *y);
@@ -181,11 +188,10 @@ private:
 		int min_lenght, int time_between_walks, int spawning_radius, float speed);
 	void spawn_peds(Vector3 pos, Vector3 goFrom, Vector3 goTo, int npeds, int ngroup, int currentBehaviour,
 		int task_time, int type, int radius, int min_lenght, int time_between_walks, int spawning_radius, float speed);
-	void loadScenario(const char* fname);
 	void walking_peds();
 	int myreadLine(FILE *f, Vector3 *pos, int *nPeds, int *ngroup, int *currentBehaviour, float *speed, Vector3 *goFrom, Vector3 *goTo, int *task_time,
 		int *type, int *radius, int *min_lenght, int *time_between_walks, int *spawning_radius);
-	
+	void readInScenarios();
 	void addwPed_scenario(Ped p);
 	Cam lockCam(Vector3 pos, Vector3 rot);
 
@@ -193,6 +199,7 @@ private:
 	const std::string output_file_param_name_ = "output_file";
 	const std::string scenario_file_param_name_ = "scenario_file";
 	const std::string max_samples_param_name_ = "max_nr_samples";
+	const std::string default_weather_param_name_ = "default_weather_name";
 };
 
 int GetEncoderClsid(const WCHAR* format, CLSID* pClsid);

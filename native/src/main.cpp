@@ -21,6 +21,7 @@
 #include <memory>
 #include <Eigen/Core>
 #include "scenario.h"
+#include "keyboard.h"
 using Microsoft::WRL::ComPtr;
 using namespace std::experimental::filesystem;
 using namespace std::string_literals;
@@ -35,10 +36,10 @@ typedef void(*draw_indexed_hook_t)(ID3D11DeviceContext*, UINT, UINT, INT);
 // ScriptHookV Functions
 void scriptMain();
 void presentCallback(void* chain);
-void OnKeyboardMessage(DWORD key, WORD repeats, BYTE scanCode, BOOL isExtended, BOOL isWithAlt, BOOL wasDownBefore, BOOL isUpNow);
-bool IsKeyDown(DWORD key);
-bool IsKeyJustUp(DWORD key, bool exclusive = true);
-void ResetKeyState(DWORD key);
+//void OnKeyboardMessage(DWORD key, WORD repeats, BYTE scanCode, BOOL isExtended, BOOL isWithAlt, BOOL wasDownBefore, BOOL isUpNow);
+//bool IsKeyDown(DWORD key);
+//bool IsKeyJustUp(DWORD key, bool exclusive = true);
+//void ResetKeyState(DWORD key);
 
 
 //void draw_indexed_hook(ID3D11DeviceContext3* self, UINT IndexStart, UINT StartIndexLocation, INT BaseVertexLocation);
@@ -70,25 +71,18 @@ static bool recording = false;
 //-------------------------
 static int draw_indexed_count = 0;
 
-const std::string parameters_file = "param/parameters.txt";
+const std::string parameters_file = "param\\parameters.txt";
+static std::unique_ptr<DatasetAnnotator> annotator=std::make_unique<DatasetAnnotator>(parameters_file,false);
 
-// Keyboard variables
-const int KEYS_SIZE = 255;
-const int NOW_PERIOD = 100, MAX_DOWN = 5000; // ms
 
 // FIXME make a read-function for the annotator in order not to require updating it every time
 // the read-function will be called everytime , a new record is started
 // FIXME add also a reset function, if required, that resets some states, here's a need of some more information
 // FIXME the constructor should only initialize some required ressources, that will last for the entire time, it lives
-static std::unique_ptr<DatasetAnnotator> annotator = std::make_unique<DatasetAnnotator>(parameters_file, false);
+//static std::unique_ptr<DatasetAnnotator> annotator = std::make_unique<DatasetAnnotator>(parameters_file, false);
 
 
-struct {
-	DWORD time;
-	BOOL isWithAlt;
-	BOOL wasDownBefore;
-	BOOL isUpNow;
-} keyStates[KEYS_SIZE];
+
 
 static void (_stdcall ID3D11DeviceContext::* origDrawInstanced)(UINT, UINT, INT) = nullptr;
 static ComPtr<ID3D11DeviceContext> ctx;
@@ -102,18 +96,18 @@ int __stdcall DllMain(HMODULE hinstance, DWORD reason, LPVOID lpReserved)
 	case DLL_PROCESS_ATTACH:
 		res = MH_Initialize();
 		if (res != MH_OK) fprintf(f, "Could not init Minihook\n");
-		//scriptRegister(hinstance, scriptMain);
 		presentCallbackRegister(presentCallback);
 		keyboardHandlerRegister(OnKeyboardMessage);
-		
+		scriptRegister(hinstance, scriptMain);
 		
 		break;
 	case DLL_PROCESS_DETACH:
 		res = MH_Uninitialize();
 		if (res != MH_OK) fprintf(f, "Could not deinit MiniHook\n");
+		scriptUnregister(hinstance);
 		presentCallbackUnregister(presentCallback);
 		keyboardHandlerUnregister(OnKeyboardMessage);
-		//scriptUnregister(hinstance);
+		
 
 		break;
 	}
@@ -121,63 +115,33 @@ int __stdcall DllMain(HMODULE hinstance, DWORD reason, LPVOID lpReserved)
 	return TRUE;
 }
 
-// this has to be modified, in order to set up the keys states
-void OnKeyboardMessage(DWORD key, WORD repeats, BYTE scanCode, BOOL isExtended, BOOL isWithAlt, BOOL wasDownBefore, BOOL isUpNow)
-{
-	if (key < KEYS_SIZE)
-	{
-		keyStates[key].time = GetTickCount();
-		keyStates[key].isWithAlt = isWithAlt;
-		keyStates[key].wasDownBefore = wasDownBefore;
-		keyStates[key].isUpNow = isUpNow;
-	}
-
-	if (key == 'R' && keyStates[key].isWithAlt && keyStates[key].wasDownBefore && keyStates[key].isUpNow && !recording) {
-		annotator->drawText("Start recording!", static_cast<float>(SCREEN_WIDTH), static_cast<float>(SCREEN_HEIGHT), 0.5f);
-		recording = true;
-	}else if (key == 'R' && keyStates[key].isWithAlt && keyStates[key].wasDownBefore && keyStates[key].isUpNow && recording) {
-		annotator->drawText("Finish recording!", static_cast<float>(SCREEN_WIDTH), static_cast<float>(SCREEN_HEIGHT), 0.5f);
-		recording = false;
-	}
-}
-
-bool IsKeyDown(DWORD key) {
-	return (key < KEYS_SIZE) ? ((GetTickCount() < keyStates[key].time + MAX_DOWN) && !keyStates[key].isUpNow) : false;
-}
-
-bool IsKeyJustUp(DWORD key, bool exclusive)
-{
-	bool b = (key < KEYS_SIZE) ? (GetTickCount() < keyStates[key].time + NOW_PERIOD && keyStates[key].isUpNow) : false;
-	if (b && exclusive)
-		ResetKeyState(key);
-	return b;
-}
-
-void ResetKeyState(DWORD key)
-{
-	if (key < KEYS_SIZE) {
-		memset(&keyStates[key], 0, sizeof(keyStates[0]));
-	}
-}
-
 inline void saveBuffersAndAnnotations(const int frame_nr) 
 {	
 	 //here we have to export all the data required, based on pushing a specific button (I would suggest 'L')
-	//const auto output_as_wstr = annotator->getOutputPathW();
 	const std::string depth_path = "depth_" + std::to_string(frame_nr) + ".raw";
 	const std::string stenc_path = "stencil_" + std::to_string(frame_nr) + ".raw";
 	const std::string col_path = "color_" + std::to_string(frame_nr) + ".raw";
+	// logging, only at first frame,  in order to avoid spamming the programm
+	if (frame_nr == 0) {
+		FILE* log = fopen("GTANativePlugin.log", "a");
+		fprintf(log, "Saving files; Depth path is %s\n", depth_path);
+		fprintf(log, "Saving files; Stencil path is %s\n", stenc_path);
+		fprintf(log, "Saving files; Color path is %s\n", col_path);
+		fclose(log);
+	}
+	// save Files
+
 	std::string out = annotator->getOutputPath();
-	auto f = fopen(out.append(depth_path).c_str(), "w");
+	auto f = fopen((out + "\\" + depth_path).c_str(), "w");
 	void* buf;
 	int size = export_get_depth_buffer(&buf);
 	fwrite(buf, 1, size, f);
 	fclose(f);
-	f = fopen(out.append(stenc_path).c_str(), "w");
+	f = fopen((out + "\\" + stenc_path).c_str(), "w");
 	size = export_get_stencil_buffer(&buf);
 	fwrite(buf, 1, size, f);
 	fclose(f);
-	f = fopen(out.append(col_path).c_str(), "w");
+	f = fopen((out + "\\" + col_path).c_str(), "w");
 	size = export_get_color_buffer(&buf);
 	fwrite(buf, 1, size, f);
 	fclose(f);
@@ -281,7 +245,10 @@ void clear_render_target_view_hook(ID3D11DeviceContext* self, ID3D11RenderTarget
 		if (hr != S_OK) return;
 		tex->GetDesc(&desc);
 		// check if the view is the one that's to be intended
-		if (desc.Format == DXGI_FORMAT_B8G8R8A8_UNORM && desc.Width > 600 && desc.Height > 600) {
+		FILE* f = fopen("GTANativePlugin.log", "a");
+		fprintf(f, "Render-Target-Hook: desc.Width is %d and desc.Height is %d\n", desc.Width, desc.Height);
+		fclose(f);
+		if (desc.Format == DXGI_FORMAT_B8G8R8A8_UNORM && desc.Width >= 1920 && desc.Height >= 1080) {
 			lastRtv = curRTV;
 		}
 	}
@@ -303,8 +270,10 @@ void clear_depth_stencil_view_hook(ID3D11DeviceContext* self, ID3D11DepthStencil
 		hr = res.As(&tex);
 		if (hr != S_OK) return;
 		tex->GetDesc(&desc);
-		
-		if (lastDsv == nullptr && desc.Format == DXGI_FORMAT_R32G8X24_TYPELESS && desc.Width > 600 && desc.Height > 600) {
+		FILE* f = fopen("GTANativePlugin.log", "a");
+		fprintf(f, "Stencil-Hook: desc.Width is %d and desc.Height is %d\n", desc.Width, desc.Height);
+		fclose(f);
+		if (lastDsv == nullptr && desc.Format == DXGI_FORMAT_R32G8X24_TYPELESS && desc.Width >= 1920 && desc.Height >= 1080) {
 			lastDsv = curDSV;
 			ExtractDepthBuffer(dev.Get(), self, res.Get());
 			last_capture_depth = system_clock::now();
@@ -364,6 +333,7 @@ void presentCallback(void* chain)
 	last_capture_color = system_clock::now();
 	lastRtv->GetResource(&colorres);
 	ExtractColorBuffer(dev.Get(), ctx.Get(), colorres.Get());
+
 	if (recording) {
 		// datasatAnnnotator extracts the files to respective repo
 		const int frame_nr = annotator->update();
@@ -374,11 +344,37 @@ void presentCallback(void* chain)
 		if (frame_nr >= annotator->getMaxFrames()) {
 			// stop recording
 			recording = false;
+			// fixme add info message here
 		}
 	}
 	//lastDsv.Reset();
 	lastDsv = nullptr;
 	lastRtv = nullptr;
 	fclose(f);
+}
+
+void reactionOnKeyboard() {
+	
+	while (true) {
+		//annotator->drawText("ScriptMain called!!!");
+		if (IsKeyJustUp(VK_F3) && !recording) {
+			annotator->drawText("Loading Scenario!");
+			annotator->loadScenario();
+			Sleep(100);
+			//annotator->drawText("Start recording!");
+			recording = true;
+		}else if (IsKeyJustUp(VK_F3) && recording) {
+			annotator->drawText("Finish recording!");
+			annotator->resetStates();
+			recording = false;
+		}
+		WAIT(0);
+	}
+}
+
+void scriptMain() {
+	
+	srand(GetTickCount());
+	reactionOnKeyboard();
 	
 }
