@@ -113,7 +113,8 @@ class DatasetAnnotator
 public:
 	DatasetAnnotator(std::string config_file, int _is_night);
 	int update();
-	void drawText(const std::string& text);
+	void drawText(const std::string& text) const;
+	void updateStatusText() const;
 	std::string getOutputPath() const { return this->current_output_path; }
 	int getMaxFrames() const { return this->max_samples; }
 	void loadScenario();
@@ -127,7 +128,7 @@ private:
 	std::string output_path;
 	std::string current_output_path;
 	std::string default_weather_;
-	std::set<std::string> scenario_names_;
+	std::set<std::string> scenario_names_, already_recorded_scenarios_;
 	int sequence_index;
 	Player player;
 	Ped playerPed;
@@ -152,6 +153,8 @@ private:
 	int nwPeds_scenario = 0;
 	int moving;
 	Vector3 A, B, C;
+	float offset_x = 0.0f;
+	float offset_y = 0.0f;
 
 	int windowWidth;
 	int windowHeight;

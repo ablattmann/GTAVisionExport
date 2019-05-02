@@ -248,7 +248,7 @@ void clear_render_target_view_hook(ID3D11DeviceContext* self, ID3D11RenderTarget
 		FILE* f = fopen("GTANativePlugin.log", "a");
 		fprintf(f, "Render-Target-Hook: desc.Width is %d and desc.Height is %d\n", desc.Width, desc.Height);
 		fclose(f);
-		if (desc.Format == DXGI_FORMAT_B8G8R8A8_UNORM && desc.Width >= 1920 && desc.Height >= 1080) {
+		if (desc.Format == DXGI_FORMAT_B8G8R8A8_UNORM && desc.Width >= 1900 && desc.Height >= 1000) {
 			lastRtv = curRTV;
 		}
 	}
@@ -273,7 +273,7 @@ void clear_depth_stencil_view_hook(ID3D11DeviceContext* self, ID3D11DepthStencil
 		FILE* f = fopen("GTANativePlugin.log", "a");
 		fprintf(f, "Stencil-Hook: desc.Width is %d and desc.Height is %d\n", desc.Width, desc.Height);
 		fclose(f);
-		if (lastDsv == nullptr && desc.Format == DXGI_FORMAT_R32G8X24_TYPELESS && desc.Width >= 1920 && desc.Height >= 1080) {
+		if (lastDsv == nullptr && desc.Format == DXGI_FORMAT_R32G8X24_TYPELESS && desc.Width >= 1900 && desc.Height >= 1000) {
 			lastDsv = curDSV;
 			ExtractDepthBuffer(dev.Get(), self, res.Get());
 			last_capture_depth = system_clock::now();
@@ -363,7 +363,7 @@ void reactionOnKeyboard() {
 			Sleep(100);
 			//annotator->drawText("Start recording!");
 			recording = true;
-		}else if (IsKeyJustUp(VK_F3) && recording) {
+		}else if ((IsKeyJustUp(VK_F3) || IsKeyJustUp(VK_ESCAPE)) && recording) {
 			annotator->drawText("Finish recording!");
 			annotator->resetStates();
 			recording = false;
