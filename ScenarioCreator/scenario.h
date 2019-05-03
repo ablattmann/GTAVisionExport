@@ -113,6 +113,7 @@ public:
 
 private:
 	Parameters<std::string> string_params_;
+	Parameters<int> int_params_;
 	Player player;
 	Ped playerPed;
 	std::string line;								// string use the safe the fram data-line
@@ -131,7 +132,7 @@ private:
 	int joint_int_codes[22];
 
 	std::string files_path_;
-	std::string default_weather_;
+	int default_weather_;
 
 	HWND hWnd;
 	HDC hWindowDC;

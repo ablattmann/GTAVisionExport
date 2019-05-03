@@ -61,11 +61,11 @@ int activeLineIndexPeds = 0;
 int nPeds = 1;
 int currentBehaviour = 0;
 bool group = false;
-const int nMaxPeds = 200;
+const int nMaxPeds = 1024;
 const int numberTaks = 9;
 
 // weather parameters
-std::string weather;
+int weather=-1;
 
 
 
@@ -328,8 +328,24 @@ inline void camLockChange()
 //	delete[] debug_c_str;
 //}
 
-inline void saveFile(const std::string& files_path, const std::string& def_weather)
+inline void saveFile(const std::string& files_path, const int def_weather)
 {	
+	const int line_count = 13;
+	LPCSTR weather_lines[line_count] = {
+		"EXTRASUNNY",
+		"CLEAR",
+		"CLOUDS",
+		"SMOG",
+		"FOGGY",
+		"OVERCAST",
+		"RAIN",
+		"THUNDER",
+		"CLEARING",
+		"NEUTRAL",
+		"SNOW",
+		"BLIZZARD",
+		"SNOWLIGHT",
+	};
 
 	std::string fname = "";
 	int stop = 0;
@@ -353,16 +369,13 @@ inline void saveFile(const std::string& files_path, const std::string& def_weath
 	// store actual weather and wind 
 	std::string weather_info = "Weather to be stored is " + weather;
 	set_status_text(weather_info);
-	if (weather.empty()) {
+	if (weather == -1) {
 		GAMEPLAY::CLEAR_OVERRIDE_WEATHER();
-		char* info = new char[def_weather.size() + 1];
-		strcpy(info,def_weather.c_str());
-		GAMEPLAY::SET_WEATHER_TYPE_NOW_PERSIST(info);
+		GAMEPLAY::SET_WEATHER_TYPE_NOW_PERSIST((char *)weather_lines[def_weather]);
 		GAMEPLAY::CLEAR_WEATHER_TYPE_PERSIST();
 		weather = def_weather;
-		delete[] info;
 	}
-	fprintf_s(f, "%d %s\n", static_cast<int>(wind), weather.c_str());
+	fprintf_s(f, "%d %d\n", static_cast<int>(wind), weather);
 	
 	//also write current time
 	const auto hours = TIME::GET_CLOCK_HOURS();
@@ -450,7 +463,7 @@ void writeLogLine(float x, float y, float z)
 
 
 
-ScenarioCreator::ScenarioCreator(const std::string& parameters_file):string_params_(parameters_file) {
+ScenarioCreator::ScenarioCreator(const std::string& parameters_file):string_params_(parameters_file),int_params_(parameters_file) {
 	PLAYER::SET_EVERYONE_IGNORE_PLAYER(PLAYER::PLAYER_PED_ID(), TRUE);
 	PLAYER::SET_POLICE_IGNORE_PLAYER(PLAYER::PLAYER_PED_ID(), TRUE);
 	PLAYER::CLEAR_PLAYER_WANTED_LEVEL(PLAYER::PLAYER_PED_ID());
@@ -462,7 +475,7 @@ ScenarioCreator::ScenarioCreator(const std::string& parameters_file):string_para
 	registerParams();
 
 	this->files_path_ = string_params_.getParam(this->scenario_file_param_name_) + "\\";
-	this->default_weather_ = string_params_.getParam(this->def_weather_param_name_);
+	this->default_weather_ = int_params_.getParam(this->def_weather_param_name_);
 
 
 	GAMEPLAY::SET_TIME_SCALE(1.0);
@@ -568,7 +581,7 @@ void ScenarioCreator::listen_for_keystrokes() {
 void ScenarioCreator::registerParams()
 {
 	string_params_.registerParam(this->scenario_file_param_name_);
-	string_params_.registerParam(this->def_weather_param_name_);
+	int_params_.registerParam(this->def_weather_param_name_);
 }
 
 void ScenarioCreator::cameraCoords()
@@ -1261,7 +1274,8 @@ void ScenarioCreator::weather_menu()
 				GAMEPLAY::CLEAR_OVERRIDE_WEATHER();
 				GAMEPLAY::SET_WEATHER_TYPE_NOW_PERSIST((char *)lines[activeLineIndexWeather]);
 				GAMEPLAY::CLEAR_WEATHER_TYPE_PERSIST();
-				weather=std::string((char *)lines[activeLineIndexWeather]);
+				// NOTE: this line cannot be reached if activeLineIndexWeather is 0. Therefore the subtraction is valid
+				weather=activeLineIndexWeather-1;
 			}
 			waitTime = 200;
 		}
