@@ -147,10 +147,11 @@ private:
 	std::vector<const char*> bad_scenarios; // 36
 	int ped_with_cam;
 	std::string file_scenarios_path;
-	wPed wPeds[max_wpeds];
-	wPed wPeds_scenario[max_wpeds];
-	int nwPeds = 0;
-	int nwPeds_scenario = 0;
+	//wPed wPeds[max_wpeds];
+	//wPed wPeds_scenario[max_wpeds];
+	//int nwPeds = 0;
+	//int nwPeds_scenario = 0;
+	std::vector<Ped> overall_peds = {};
 	int moving;
 	Vector3 A, B, C;
 	float offset_x = 0.0f;
@@ -164,6 +165,8 @@ private:
 	int fov;
 	int max_waiting_time = 0;
 	int is_night;
+
+	int n_peds_left = max_number_of_peds;
 
 	HWND hWnd;
 	HDC hWindowDC;
@@ -184,10 +187,10 @@ private:
 /*	void save_frame();		*/																// function used to capture frames internally, then private
 	void setCameraFixed(Vector3 coords, Vector3 rot, float cam_z, int fov);
 	void setCameraMoving(Vector3 A, Vector3 B, Vector3 C, int fov);							// function used to set the camera stuff
-	void spawnPed(Vector3 spawnAreaCenter, int numPed);										// function used to spawn pedestrians at the beginning of the scenario
+/*	void spawnPed(Vector3 spawnAreaCenter, int numPed);*/										// function used to spawn pedestrians at the beginning of the scenario
 	Vector3 teleportPlayer(Vector3 pos);													// function used to teleport the player to a random position returned by the function
-	void addwPed(Ped p, Vector3 from, Vector3 to, int stop, float spd);
-	void spawn_peds_flow(Vector3 pos, Vector3 goFrom, Vector3 goTo, int npeds, int ngroup, int currentBehaviour, int task_time, int type, int radius, 
+	//void addwPed(Ped p, Vector3 from, Vector3 to, int stop, float spd);
+	void spawn_peds_flow(Vector3 pos, Vector3 goFrom, Vector3 goTo, int npeds, int ngroup, int task_time, int type, int radius, 
 		int min_lenght, int time_between_walks, int spawning_radius, float speed);
 	void spawn_peds(Vector3 pos, Vector3 goFrom, Vector3 goTo, int npeds, int ngroup, int currentBehaviour,
 		int task_time, int type, int radius, int min_lenght, int time_between_walks, int spawning_radius, float speed);
@@ -195,7 +198,8 @@ private:
 	int myreadLine(FILE *f, Vector3 *pos, int *nPeds, int *ngroup, int *currentBehaviour, float *speed, Vector3 *goFrom, Vector3 *goTo, int *task_time,
 		int *type, int *radius, int *min_lenght, int *time_between_walks, int *spawning_radius);
 	void readInScenarios();
-	void addwPed_scenario(Ped p);
+	//void addwPed_scenario(Ped p);
+	void addPed(const Ped ped);
 	Cam lockCam(Vector3 pos, Vector3 rot);
 
 	// parameter names

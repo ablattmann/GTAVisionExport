@@ -122,13 +122,13 @@ inline void saveBuffersAndAnnotations(const int frame_nr)
 	const std::string stenc_path = "stencil_" + std::to_string(frame_nr) + ".raw";
 	const std::string col_path = "color_" + std::to_string(frame_nr) + ".raw";
 	// logging, only at first frame,  in order to avoid spamming the programm
-	if (frame_nr == 0) {
-		FILE* log = fopen("GTANativePlugin.log", "a");
-		fprintf(log, "Saving files; Depth path is %s\n", depth_path);
-		fprintf(log, "Saving files; Stencil path is %s\n", stenc_path);
-		fprintf(log, "Saving files; Color path is %s\n", col_path);
-		fclose(log);
-	}
+	//if (frame_nr == 0) {
+	//	FILE* log = fopen("GTANativePlugin.log", "a");
+	//	fprintf(log, "Saving files; Depth path is %s\n", depth_path);
+	//	fprintf(log, "Saving files; Stencil path is %s\n", stenc_path);
+	//	fprintf(log, "Saving files; Color path is %s\n", col_path);
+	//	fclose(log);
+	//}
 	// save Files
 
 	std::string out = annotator->getOutputPath();
@@ -245,9 +245,9 @@ void clear_render_target_view_hook(ID3D11DeviceContext* self, ID3D11RenderTarget
 		if (hr != S_OK) return;
 		tex->GetDesc(&desc);
 		// check if the view is the one that's to be intended
-		FILE* f = fopen("GTANativePlugin.log", "a");
+		/*FILE* f = fopen("GTANativePlugin.log", "a");
 		fprintf(f, "Render-Target-Hook: desc.Width is %d and desc.Height is %d\n", desc.Width, desc.Height);
-		fclose(f);
+		fclose(f);*/
 		if (desc.Format == DXGI_FORMAT_B8G8R8A8_UNORM && desc.Width >= 1900 && desc.Height >= 1000) {
 			lastRtv = curRTV;
 		}
@@ -270,9 +270,9 @@ void clear_depth_stencil_view_hook(ID3D11DeviceContext* self, ID3D11DepthStencil
 		hr = res.As(&tex);
 		if (hr != S_OK) return;
 		tex->GetDesc(&desc);
-		FILE* f = fopen("GTANativePlugin.log", "a");
+		/*FILE* f = fopen("GTANativePlugin.log", "a");
 		fprintf(f, "Stencil-Hook: desc.Width is %d and desc.Height is %d\n", desc.Width, desc.Height);
-		fclose(f);
+		fclose(f);*/
 		if (lastDsv == nullptr && desc.Format == DXGI_FORMAT_R32G8X24_TYPELESS && desc.Width >= 1900 && desc.Height >= 1000) {
 			lastDsv = curDSV;
 			ExtractDepthBuffer(dev.Get(), self, res.Get());
@@ -339,7 +339,8 @@ void presentCallback(void* chain)
 		const int frame_nr = annotator->update();
 
 		// store buffers into the same repo
-		saveBuffersAndAnnotations(frame_nr);
+		if(frame_nr>=0) saveBuffersAndAnnotations(frame_nr);
+		
 
 		if (frame_nr >= annotator->getMaxFrames()) {
 			// stop recording
@@ -360,13 +361,14 @@ void reactionOnKeyboard() {
 		if (IsKeyJustUp(VK_F3) && !recording) {
 			annotator->drawText("Loading Scenario!");
 			annotator->loadScenario();
+			recording = true;
 			Sleep(100);
 			//annotator->drawText("Start recording!");
-			recording = true;
-		}else if ((IsKeyJustUp(VK_F3) || IsKeyJustUp(VK_ESCAPE)) && recording) {
+		}else if ((IsKeyJustUp(VK_F2) || IsKeyJustUp(VK_ESCAPE)) && recording) {
+			recording = false;
 			annotator->drawText("Finish recording!");
 			annotator->resetStates();
-			recording = false;
+			Sleep(100);
 		}
 		WAIT(0);
 	}

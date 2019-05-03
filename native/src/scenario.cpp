@@ -264,13 +264,25 @@ void DatasetAnnotator::readInScenarios() {
 	}
 }
 
+void DatasetAnnotator::addPed(const Ped ped) {
+	n_peds_left--;
+	overall_peds.push_back(ped);
+	log_file << "Adding new ped; number of peds left is" << n_peds_left << "\n";
+}
+
 int DatasetAnnotator::update()
 {
-	float delay = ((float)(std::clock() - lastRecordingTime)) / CLOCKS_PER_SEC;
-	if (delay >= recordingPeriod)
+	float delay = (static_cast<float>(std::clock() - lastRecordingTime)) / CLOCKS_PER_SEC;
+	if (delay >= recordingPeriod) {
+		log_file << "Resetting last recording time; Delay is " << delay << "; recordingPeriod is " << recordingPeriod << "\n";
 		lastRecordingTime = std::clock();
-	else
-		return nsample;
+
+	}
+	else {
+		log_file << "Delay smaller than recordingPeriod! Returning nsample without doing anything; Delay is " << delay << "; recordingPeriod is " << recordingPeriod << "\n";
+		return -1;
+	}
+		
 	GAMEPLAY::SET_TIME_SCALE(1.0f / (float)TIME_FACTOR);
 
 	PED::SET_PED_DENSITY_MULTIPLIER_THIS_FRAME(1.0);
@@ -502,14 +514,14 @@ int DatasetAnnotator::update()
 	// increase nsample by one to make sure that patches are aligned
 	nsample++;
 	//save_frame();
-	if (nsample == max_samples) {
-		for (int i = 0; i < nwPeds; i++) {
-			PED::DELETE_PED(&wPeds[i].ped);
-		}
-		for (int i = 0; i < nwPeds_scenario; i++) {
-			PED::DELETE_PED(&wPeds_scenario[i].ped);
-		}
-	}
+	//if (nsample == max_samples) {
+	//	for (int i = 0; i < nwPeds; i++) {
+	//		PED::DELETE_PED(&wPeds[i].ped);
+	//	}
+	//	for (int i = 0; i < nwPeds_scenario; i++) {
+	//		PED::DELETE_PED(&wPeds_scenario[i].ped);
+	//	}
+	//}
 
 	return nsample;
 }
@@ -523,28 +535,31 @@ void DatasetAnnotator::updateStatusText() const {
 	update_status_text();
 }
 
-void DatasetAnnotator::addwPed(Ped p, Vector3 from, Vector3 to, int stop, float spd)
-{
-	if (nwPeds > 299)
-		return;
-
-	wPeds[nwPeds].ped = p;
-	wPeds[nwPeds].from = from;
-	wPeds[nwPeds].to = to;
-	wPeds[nwPeds].stopTime = stop;
-	wPeds[nwPeds].speed = spd;
-
-	nwPeds++;
-}
-
-void DatasetAnnotator::addwPed_scenario(Ped p)
-{
-	if (nwPeds_scenario > 299)
-		return;
-
-	wPeds_scenario[nwPeds_scenario].ped = p;
-	nwPeds_scenario++;
-}
+//void DatasetAnnotator::addwPed(Ped p, Vector3 from, Vector3 to, int stop, float spd)
+//{
+//	if (nwPeds > max_wpeds)
+//		return;
+//
+//	wPeds[nwPeds].ped = p;
+//	wPeds[nwPeds].from = from;
+//	wPeds[nwPeds].to = to;
+//	wPeds[nwPeds].stopTime = stop;
+//	wPeds[nwPeds].speed = spd;
+//
+//	decreaseNPedsLeft();
+//	nwPeds++;
+//}
+//
+//void DatasetAnnotator::addwPed_scenario(Ped p)
+//{
+//	if (nwPeds_scenario > max_wpeds)
+//		return;
+//
+//	wPeds_scenario[nwPeds_scenario].ped = p;
+//	decreaseNPedsLeft();
+//
+//	nwPeds_scenario++;
+//}
 
 void DatasetAnnotator::registerParams()
 {	
@@ -868,8 +883,7 @@ void DatasetAnnotator::loadScenario()
 		&time_between_walks, &spawning_radius) >= 0) {
 
 		if (currentBehaviour == 8) {
-			spawn_peds_flow(pos, goFrom, goTo, npeds, ngroup,
-				currentBehaviour, task_time, type, radius,
+			spawn_peds_flow(pos, goFrom, goTo, npeds, ngroup, task_time, type, radius,
 				min_lenght, time_between_walks, spawning_radius, speed);
 		}
 		else {
@@ -1010,10 +1024,19 @@ void DatasetAnnotator::loadScenario()
 
 void DatasetAnnotator::resetStates()
 {	
-	// reset time scale in order to make the user see that recording has ended
-	GAMEPLAY::SET_TIME_SCALE(1.0f);
-	Gdiplus::GdiplusShutdown(gdiplusToken);
+
 	set_status_text("Reset Function of Dataset Annotator was called!", 1000, true);
+	// reset the number of peds that are left
+	n_peds_left = max_number_of_peds;
+	// delete all the peds spawned so far and clear the counter container
+	for (auto& p : overall_peds) {
+		PED::DELETE_PED(&p);
+		WAIT(10);
+	}
+
+	overall_peds.clear();
+
+	// close current log and coords files
 	if (coords_file.is_open()) {
 		coords_file.close();
 	}
@@ -1021,121 +1044,169 @@ void DatasetAnnotator::resetStates()
 	if (log_file.is_open()) {
 		log_file.close();
 	}
-	// FIXME check if there's something to return here
+	// reset time scale in order to make the user see that recording has ended
+	GAMEPLAY::SET_TIME_SCALE(1.0f);
+
+	
+	Gdiplus::GdiplusShutdown(gdiplusToken);
+
 }
 
-void DatasetAnnotator::spawn_peds_flow(Vector3 pos, Vector3 goFrom, Vector3 goTo, int npeds, int ngroup, int currentBehaviour, 
+void DatasetAnnotator::spawn_peds_flow(Vector3 pos, Vector3 goFrom, Vector3 goTo, int npeds, int ngroup, 
 	int task_time, int type, int radius, int min_lenght, int time_between_walks, int spawning_radius, float speed) {
 
-	Ped ped[100];
-	Ped ped_specular[100];
-	Vector3 current;
-	int i = 0;
-
-	float rnX, rnY;
-
-	if (currentBehaviour == 8) {
-		for (int i = 0; i < npeds; i++) {
-			ped[i] = PED::CREATE_RANDOM_PED(goFrom.x, goFrom.y, goFrom.z);
-			WAIT(100);
-		}
-		if (DEMO)
-			WAIT(500);
-		else
-			WAIT(2000);
-		for (int i = 0; i<npeds; i++) {
-			ENTITY::SET_ENTITY_HEALTH(ped[i], 0);
-			WAIT(50);
-		}
-		if (DEMO)
-			WAIT(500);
-		else
-			WAIT(2000);
-		for (int i = 0; i < npeds; i++) {
-			AI::CLEAR_PED_TASKS_IMMEDIATELY(ped[i]);
-			PED::RESURRECT_PED(ped[i]);
-			PED::REVIVE_INJURED_PED(ped[i]);
-			ENTITY::SET_ENTITY_COLLISION(ped[i], TRUE, TRUE);
-			PED::SET_PED_CAN_RAGDOLL(ped[i], TRUE);
-			PED::SET_BLOCKING_OF_NON_TEMPORARY_EVENTS(ped[i], TRUE);
-			PED::SET_PED_COMBAT_ATTRIBUTES(ped[i], 1, FALSE);
-		}
-		if (DEMO)
-			WAIT(500);
-		else
-			WAIT(2000);
-		for (int i = 0; i < npeds; i++) {
-			ped_specular[i] = PED::CREATE_RANDOM_PED(goTo.x, goTo.y, goTo.z);
-			WAIT(100);
-		}
-		if (DEMO)
-			WAIT(500);
-		else
-			WAIT(2000);
-		for (int i = 0; i<npeds; i++) {
-			ENTITY::SET_ENTITY_HEALTH(ped_specular[i], 0);
-			WAIT(50);
-		}
-		if (DEMO)
-			WAIT(500);
-		else
-			WAIT(2000);
-		for (int i = 0; i<npeds; i++) {
-			AI::CLEAR_PED_TASKS_IMMEDIATELY(ped_specular[i]);
-			PED::RESURRECT_PED(ped_specular[i]);
-			PED::REVIVE_INJURED_PED(ped_specular[i]);
-			ENTITY::SET_ENTITY_COLLISION(ped_specular[i], TRUE, TRUE);
-			PED::SET_PED_CAN_RAGDOLL(ped_specular[i], TRUE);
-			PED::SET_BLOCKING_OF_NON_TEMPORARY_EVENTS(ped_specular[i], TRUE);
-			PED::SET_PED_COMBAT_ATTRIBUTES(ped_specular[i], 1, FALSE);
-		}
-
-		
+	const auto max_len = static_cast<int>(n_peds_left / 2);
+	if (max_len <= 0) {
+		return;
 	}
-	else if (currentBehaviour == 0) {
-		for (int i = 0; i<npeds; i++) {
-			ped[i] = PED::CREATE_RANDOM_PED(pos.x, pos.y, pos.z);
-			WAIT(50);
-		}
-		for (int i = 0; i < npeds; i++) {
-			ENTITY::SET_ENTITY_HEALTH(ped[i], 0);
-			WAIT(50);
-		}
+	if (max_len < npeds) {
+		log_file << "WARNING: not able to spawn more peds, max number of available peds is " << n_peds_left << "; numbe of reauired peds is " << 2*npeds << "\n";
+	}
+
+	const auto actual_npeds = max_len < npeds ? max_len : npeds;
+	log_file << "Spawn peds flow: Actual nr of peds is " << actual_npeds << "\n";
+
+
+	std::vector<std::pair<Ped, Ped>> peds;
+	peds.reserve(actual_npeds);
+	
+
+	//std::vector<Ped> ped;
+	//ped.reserve(max_len);
+	//std::vector<Ped> ped_specular;
+	//ped_specular.reserve(max_len);
+	//Ped ped[n_peds_left];
+	
+	//Ped ped_specular[static_cast<int>(max_wpeds / 2)];
+
+	//float rnX, rnY;
+
+	for (int i = 0; i < actual_npeds; i++) {
+		peds.push_back(std::make_pair(PED::CREATE_RANDOM_PED(goFrom.x, goFrom.y, goFrom.z), PED::CREATE_RANDOM_PED(goTo.x, goTo.y, goTo.z)));
+		WAIT(100);
+	}
+	log_file << "Spawn peds flow: length of peds vector is " << peds.size() << "\n";
+	if (DEMO)
 		WAIT(500);
-		for (int i = 0; i < npeds; i++) {
-			AI::CLEAR_PED_TASKS_IMMEDIATELY(ped[i]);
-			PED::RESURRECT_PED(ped[i]);
-			PED::REVIVE_INJURED_PED(ped[i]);
-			ENTITY::SET_ENTITY_COLLISION(ped[i], TRUE, TRUE);
-			PED::SET_PED_CAN_RAGDOLL(ped[i], TRUE);
-			PED::SET_BLOCKING_OF_NON_TEMPORARY_EVENTS(ped[i], TRUE);
-			PED::SET_PED_COMBAT_ATTRIBUTES(ped[i], 1, FALSE);
-		}
+	else
+		WAIT(2000);
+	/*for (int i = 0; i<npeds; i++) {
+		ENTITY::SET_ENTITY_HEALTH(ped[i], 0);
+		WAIT(50);
+	}*/
+	for (auto& p : peds) {
+		ENTITY::SET_ENTITY_HEALTH(p.first, 0);
+		WAIT(50);
+		ENTITY::SET_ENTITY_HEALTH(p.second, 0);
+		WAIT(50);
 	}
-
-	// resurrecting all pedestrians and assigning them a task
-	for (int i = 0; i<npeds; i++) {
+	if (DEMO)
+		WAIT(500);
+	else
+		WAIT(2000);
+	//for (int i = 0; i < npeds; i++) {
+	//	AI::CLEAR_PED_TASKS_IMMEDIATELY(ped[i]);
+	//	PED::RESURRECT_PED(ped[i]);
+	//	PED::REVIVE_INJURED_PED(ped[i]);
+	//	ENTITY::SET_ENTITY_COLLISION(ped[i], TRUE, TRUE);
+	//	PED::SET_PED_CAN_RAGDOLL(ped[i], TRUE);
+	//	PED::SET_BLOCKING_OF_NON_TEMPORARY_EVENTS(ped[i], TRUE);
+	//	PED::SET_PED_COMBAT_ATTRIBUTES(ped[i], 1, FALSE);
+	//}
+		
+	for (auto& p : peds) {
+		// main ped 
+		AI::CLEAR_PED_TASKS_IMMEDIATELY(p.first);
+		PED::RESURRECT_PED(p.first);
+		PED::REVIVE_INJURED_PED(p.first);
+		ENTITY::SET_ENTITY_COLLISION(p.first, TRUE, TRUE);
+		PED::SET_PED_CAN_RAGDOLL(p.first, TRUE);
+		PED::SET_BLOCKING_OF_NON_TEMPORARY_EVENTS(p.first, TRUE);
+		PED::SET_PED_COMBAT_ATTRIBUTES(p.first, 1, FALSE);
 
 		WAIT(50);
 
-		current = ENTITY::GET_ENTITY_COORDS(ped[i], TRUE);
+		// additional specular ped
+		AI::CLEAR_PED_TASKS_IMMEDIATELY(p.second);
+		PED::RESURRECT_PED(p.second);
+		PED::REVIVE_INJURED_PED(p.second);
+		ENTITY::SET_ENTITY_COLLISION(p.second, TRUE, TRUE);
+		PED::SET_PED_CAN_RAGDOLL(p.second, TRUE);
+		PED::SET_BLOCKING_OF_NON_TEMPORARY_EVENTS(p.second, TRUE);
+		PED::SET_PED_COMBAT_ATTRIBUTES(p.second, 1, FALSE);
+	}
 
-		Ped targetPed = ped[0];
-		if (npeds > 1)
-			targetPed = ped[1];
 
-		Vector3 pp = ENTITY::GET_ENTITY_COORDS(PLAYER::PLAYER_ID(), TRUE);
+		//if (DEMO)
+		//	WAIT(500);
+		//else
+		//	WAIT(2000);
+		//for (int i = 0; i < actual_npeds; i++) {
+		//	ped_specular.push_back(PED::CREATE_RANDOM_PED(goTo.x, goTo.y, goTo.z));
+		//	WAIT(100);
+		//}
+		//
+		//if (DEMO)
+		//	WAIT(500);
+		//else
+		//	WAIT(2000);
+		///*for (int i = 0; i<npeds; i++) {
+		//	ENTITY::SET_ENTITY_HEALTH(ped_specular[i], 0);
+		//	WAIT(50);
+		//}*/
+
+		//for (auto& p : ped_specular) {
+		//	ENTITY::SET_ENTITY_HEALTH(p, 0);
+		//	WAIT(50);
+		//}
+
+		//if (DEMO)
+		//	WAIT(500);
+		//else
+		//	WAIT(2000);
+		////for (int i = 0; i<npeds; i++) {
+		////	AI::CLEAR_PED_TASKS_IMMEDIATELY(ped_specular[i]);
+		////	PED::RESURRECT_PED(ped_specular[i]);
+		////	PED::REVIVE_INJURED_PED(ped_specular[i]);
+		////	ENTITY::SET_ENTITY_COLLISION(ped_specular[i], TRUE, TRUE);
+		////	PED::SET_PED_CAN_RAGDOLL(ped_specular[i], TRUE);
+		////	PED::SET_BLOCKING_OF_NON_TEMPORARY_EVENTS(ped_specular[i], TRUE);
+		////	PED::SET_PED_COMBAT_ATTRIBUTES(ped_specular[i], 1, FALSE);
+		////}
+
+		//for(auto& p:ped_specular) {
+		//	AI::CLEAR_PED_TASKS_IMMEDIATELY(p);
+		//	PED::RESURRECT_PED(p);
+		//	PED::REVIVE_INJURED_PED(p);
+		//	ENTITY::SET_ENTITY_COLLISION(p, TRUE, TRUE);
+		//	PED::SET_PED_CAN_RAGDOLL(p, TRUE);
+		//	PED::SET_BLOCKING_OF_NON_TEMPORARY_EVENTS(p, TRUE);
+		//	PED::SET_PED_COMBAT_ATTRIBUTES(p, 1, FALSE);
+		//}
+
 		
-		if (spawning_radius == -1) {
+	if (DEMO)
+		WAIT(500);
+	else
+		WAIT(2000);
+
+	// resurrecting all pedestrians and assigning them a task
+	for (auto& p : peds) {
+
+		WAIT(50);
+		
+		const auto rnX = spawning_radius == -1 ? static_cast<float>(((rand() % 81) - 40) / 10.0) : static_cast<float>((rand() % (spawning_radius * 2)) - spawning_radius);
+		const auto rnY = spawning_radius == -1 ? static_cast<float>(((rand() % 81) - 40) / 10.0) : static_cast<float>((rand() % (spawning_radius * 2)) - spawning_radius);
+		/*if (spawning_radius == -1) {
 			rnX = (float)(((rand() % 81) - 40) / 10.0);
 			rnY = (float)(((rand() % 81) - 40) / 10.0);
 		}
 		else {
 			rnX = (float)((rand() % (spawning_radius * 2)) - spawning_radius);
 			rnY = (float)((rand() % (spawning_radius * 2)) - spawning_radius);
-		}
+		}*/
 		float speed_rnd = (float)(10 + rand() % 4) / 10;
-		addwPed(ped[i], coordsToVector(goFrom.x + rnX, goFrom.y + rnY, goFrom.z), coordsToVector(goTo.x + rnX, goTo.y + rnY, goTo.z), time_between_walks, speed_rnd);
+		addPed(p.first);
 		Object seq;
 		// waiting time proportional to distance
 		float atob = GAMEPLAY::GET_DISTANCE_BETWEEN_COORDS(goFrom.x, goFrom.y, goFrom.z, goTo.x, goTo.y, goTo.z, 1);
@@ -1155,55 +1226,82 @@ void DatasetAnnotator::spawn_peds_flow(Vector3 pos, Vector3 goFrom, Vector3 goTo
 		AI::TASK_GO_TO_COORD_ANY_MEANS(0, goFrom.x + rnX, goFrom.y + rnY, goFrom.z, speed_rnd, 0, 0, 786603, 0xbf800000);
 		AI::TASK_GO_TO_COORD_ANY_MEANS(0, goTo.x + rnX, goTo.y + rnY, goTo.z, speed_rnd, 0, 0, 786603, 0xbf800000);
 		AI::CLOSE_SEQUENCE_TASK(seq);
-		AI::TASK_PERFORM_SEQUENCE(ped[i], seq);
+		AI::TASK_PERFORM_SEQUENCE(p.first, seq);
 		AI::CLEAR_SEQUENCE_TASK(&seq);
 
 		if (spawning_radius != -1) {
-			rnX = (float)((rand() % (spawning_radius * 2)) - spawning_radius);
-			rnY = (float)((rand() % (spawning_radius * 2)) - spawning_radius);
+			const auto rnX_spec = static_cast<float>((rand() % (spawning_radius * 2)) - spawning_radius);
+			const auto rnY_spec = static_cast<float>((rand() % (spawning_radius * 2)) - spawning_radius);
 			speed_rnd = (float)(10 + rand() % 4) / 10;
 
 			WAIT(50);
 
-			addwPed(ped_specular[i], coordsToVector(goTo.x + rnX, goTo.y + rnY, goTo.z), coordsToVector(goFrom.x + rnX, goFrom.y + rnY, goFrom.z), time_between_walks, speed_rnd);
+			/*addwPed(p.second, coordsToVector(goTo.x + rnX_spec, goTo.y + rnY_spec, goTo.z), coordsToVector(goFrom.x + rnX_spec, goFrom.y + rnY_spec, goFrom.z), time_between_walks, speed_rnd);*/
+			addPed(p.second);
 
 			Object seq2;
 			AI::OPEN_SEQUENCE_TASK(&seq2);
 			AI::TASK_USE_MOBILE_PHONE_TIMED(0, rand() % max_time);
-			AI::TASK_GO_TO_COORD_ANY_MEANS(0, goTo.x + rnX, goTo.y + rnY, goTo.z, speed_rnd, 0, 0, 786603, 0xbf800000);
-			AI::TASK_GO_TO_COORD_ANY_MEANS(0, goFrom.x + rnX, goFrom.y + rnY, goFrom.z, speed_rnd, 0, 0, 786603, 0xbf800000);
-			AI::TASK_GO_TO_COORD_ANY_MEANS(0, goTo.x + rnX, goTo.y + rnY, goTo.z, speed_rnd, 0, 0, 786603, 0xbf800000);
-			AI::TASK_GO_TO_COORD_ANY_MEANS(0, goFrom.x + rnX, goFrom.y + rnY, goFrom.z, speed_rnd, 0, 0, 786603, 0xbf800000);
-			AI::TASK_GO_TO_COORD_ANY_MEANS(0, goTo.x + rnX, goTo.y + rnY, goTo.z, speed_rnd, 0, 0, 786603, 0xbf800000);
-			AI::TASK_GO_TO_COORD_ANY_MEANS(0, goFrom.x + rnX, goFrom.y + rnY, goFrom.z, speed_rnd, 0, 0, 786603, 0xbf800000);
-			AI::TASK_GO_TO_COORD_ANY_MEANS(0, goTo.x + rnX, goTo.y + rnY, goTo.z, speed_rnd, 0, 0, 786603, 0xbf800000);
-			AI::TASK_GO_TO_COORD_ANY_MEANS(0, goFrom.x + rnX, goFrom.y + rnY, goFrom.z, speed_rnd, 0, 0, 786603, 0xbf800000);
+			AI::TASK_GO_TO_COORD_ANY_MEANS(0, goTo.x + rnX_spec, goTo.y + rnY_spec, goTo.z, speed_rnd, 0, 0, 786603, 0xbf800000);
+			AI::TASK_GO_TO_COORD_ANY_MEANS(0, goFrom.x + rnX_spec, goFrom.y + rnY_spec, goFrom.z, speed_rnd, 0, 0, 786603, 0xbf800000);
+			AI::TASK_GO_TO_COORD_ANY_MEANS(0, goTo.x + rnX_spec, goTo.y + rnY_spec, goTo.z, speed_rnd, 0, 0, 786603, 0xbf800000);
+			AI::TASK_GO_TO_COORD_ANY_MEANS(0, goFrom.x + rnX_spec, goFrom.y + rnY_spec, goFrom.z, speed_rnd, 0, 0, 786603, 0xbf800000);
+			AI::TASK_GO_TO_COORD_ANY_MEANS(0, goTo.x + rnX_spec, goTo.y + rnY_spec, goTo.z, speed_rnd, 0, 0, 786603, 0xbf800000);
+			AI::TASK_GO_TO_COORD_ANY_MEANS(0, goFrom.x + rnX_spec, goFrom.y + rnY_spec, goFrom.z, speed_rnd, 0, 0, 786603, 0xbf800000);
+			AI::TASK_GO_TO_COORD_ANY_MEANS(0, goTo.x + rnX_spec, goTo.y + rnY_spec, goTo.z, speed_rnd, 0, 0, 786603, 0xbf800000);
+			AI::TASK_GO_TO_COORD_ANY_MEANS(0, goFrom.x + rnX_spec, goFrom.y + rnY_spec, goFrom.z, speed_rnd, 0, 0, 786603, 0xbf800000);
 			AI::CLOSE_SEQUENCE_TASK(seq2);
-			AI::TASK_PERFORM_SEQUENCE(ped_specular[i], seq2);
+			AI::TASK_PERFORM_SEQUENCE(p.second, seq2);
 			AI::CLEAR_SEQUENCE_TASK(&seq2);
 		}
 	}
+	/*if (DEMO)
+		WAIT(500);
+	else
+		WAIT(2000);*/
 }
 
 void DatasetAnnotator::spawn_peds(Vector3 pos, Vector3 goFrom, Vector3 goTo, int npeds, int ngroup, int currentBehaviour,
 	int task_time, int type, int radius, int min_lenght, int time_between_walks, int spawning_radius, float speed) {
 
-	Ped ped[100];
+	const auto max_len = n_peds_left;
+	if (max_len <= 0) {
+		log_file << "WARNING: not able to spawn more peds, returning because none is left.\n";
+		return;
+	}
+	if (max_len < npeds) {
+		log_file << "WARNING: not able to spawn more peds, max number of available peds is " << n_peds_left << "; number of reauired peds is " << npeds << "\n";
+	}
+
+	const auto actual_npeds = max_len < npeds ? max_len : npeds;
+
+	std::vector<Ped> peds;
+	peds.reserve(actual_npeds);
+
+	/*Ped ped[100];
 	Vector3 current;
-	int i = 0;
+	int i = 0;*/
 
-	int rn;
-
-	for (int i = 0; i < npeds; i++) {
-		ped[i] = PED::CREATE_RANDOM_PED(pos.x, pos.y, pos.z);
+	for (int i = 0; i < actual_npeds; i++) {
+		peds.push_back(PED::CREATE_RANDOM_PED(pos.x, pos.y, pos.z));
 		WAIT(50);
 	}
-	for (int i = 0; i < npeds; i++) {
-		ENTITY::SET_ENTITY_HEALTH(ped[i], 0);
+	//for (int i = 0; i < npeds; i++) {
+	//	ENTITY::SET_ENTITY_HEALTH(ped[i], 0);
+	//	WAIT(50);
+	//}
+
+	if (DEMO)
+		WAIT(500);
+	else
+		WAIT(2000);
+
+	for (auto& p : peds) {
+		ENTITY::SET_ENTITY_HEALTH(p, 0);
 		WAIT(50);
 	}
 	WAIT(500);
-	for (int i = 0; i < npeds; i++) {
+	/*for (int i = 0; i < npeds; i++) {
 		AI::CLEAR_PED_TASKS_IMMEDIATELY(ped[i]);
 		PED::RESURRECT_PED(ped[i]);
 		PED::REVIVE_INJURED_PED(ped[i]);
@@ -1211,60 +1309,82 @@ void DatasetAnnotator::spawn_peds(Vector3 pos, Vector3 goFrom, Vector3 goTo, int
 		PED::SET_PED_CAN_RAGDOLL(ped[i], TRUE);
 		PED::SET_BLOCKING_OF_NON_TEMPORARY_EVENTS(ped[i], TRUE);
 		PED::SET_PED_COMBAT_ATTRIBUTES(ped[i], 1, FALSE);
+	}*/
+
+	for (auto& p: peds) {
+		AI::CLEAR_PED_TASKS_IMMEDIATELY(p);
+		PED::RESURRECT_PED(p);
+		PED::REVIVE_INJURED_PED(p);
+		ENTITY::SET_ENTITY_COLLISION(p, TRUE, TRUE);
+		PED::SET_PED_CAN_RAGDOLL(p, TRUE);
+		PED::SET_BLOCKING_OF_NON_TEMPORARY_EVENTS(p, TRUE);
+		PED::SET_PED_COMBAT_ATTRIBUTES(p, 1, FALSE);
 	}
 	
+	// fixme make this more realistic, not only one pedestrian should be talked to or fought
+	const auto targetPed = actual_npeds > 1 ? *std::next(peds.begin()) : peds.front();
+
+	if (DEMO)
+		WAIT(500);
+	else
+		WAIT(2000);
 
 	// resurrecting all pedestrians and assigning them a task
-	for (int i = 0; i < npeds; i++) {
+	for (auto& p : peds) {
 
 		WAIT(50);
 
-		current = ENTITY::GET_ENTITY_COORDS(ped[i], TRUE);
-
-		Ped targetPed = ped[0];
-		if (npeds > 1)
-			targetPed = ped[1];
-
-		Vector3 pp = ENTITY::GET_ENTITY_COORDS(PLAYER::PLAYER_ID(), TRUE);
+		const auto current = ENTITY::GET_ENTITY_COORDS(p, TRUE);
+		const int rn = rand() % 12 + 2;
 		switch (currentBehaviour)
 		{
 		case 0:
-			rn = rand() % 12 + 2;
 			if (type == 0) {
-				AI::TASK_USE_NEAREST_SCENARIO_TO_COORD(ped[i], current.x, current.y, current.z, 100.0, task_time);
-				addwPed_scenario(ped[i]);
+				AI::TASK_USE_NEAREST_SCENARIO_TO_COORD(p, current.x, current.y, current.z, 100.0, task_time);
 			}
-
-			else if (type == 1)
-				AI::TASK_START_SCENARIO_IN_PLACE(ped[i], scenarioTypes[rn], 0, true);
-			else
-				AI::TASK_START_SCENARIO_IN_PLACE(ped[i], scenarioTypes[type], 0, true);
+			else if (type == 1) {
+				AI::TASK_START_SCENARIO_IN_PLACE(p, scenarioTypes[rn], 0, true);
+			}
+			else {
+				AI::TASK_START_SCENARIO_IN_PLACE(p, scenarioTypes[type], 0, true);
+			}
+			addPed(p);
 			break;
 		case 1:
-			AI::TASK_STAND_STILL(ped[i], task_time);
+			AI::TASK_STAND_STILL(p, task_time);
+			addPed(p);
 			break;
 		case 2:
-			AI::TASK_USE_MOBILE_PHONE_TIMED(ped[i], task_time);
+			AI::TASK_USE_MOBILE_PHONE_TIMED(p, task_time);
 			//AI::TASK_START_SCENARIO_AT_POSITION(ped[i], "PROP_HUMAN_SEAT_BENCH", current.x, current.y, current.z, 0, 100000, TRUE, TRUE);
+			addPed(p);
 			break;
 		case 3:
-			AI::TASK_COWER(ped[i], task_time);
+			AI::TASK_COWER(p, task_time);
+			addPed(p);
 			break;
 		case 4:
-			AI::TASK_WANDER_IN_AREA(ped[i], current.x, current.y, current.z, (float)radius, (float)min_lenght, (float)time_between_walks);
+			AI::TASK_WANDER_IN_AREA(p, current.x, current.y, current.z, (float)radius, (float)min_lenght, (float)time_between_walks);
+			addPed(p);
 			break;
 		case 5:
-			if (i > 0)
-				AI::TASK_CHAT_TO_PED(ped[i], ped[0], 16, 0.0, 0.0, 0.0, 0.0, 0.0);
-			else
-				AI::TASK_CHAT_TO_PED(ped[i], targetPed, 16, 0.0, 0.0, 0.0, 0.0, 0.0);
+			if (p != peds.front()) {
+				AI::TASK_CHAT_TO_PED(p, peds.front(), 16, 0.0, 0.0, 0.0, 0.0, 0.0);
+			}
+			else {
+				AI::TASK_CHAT_TO_PED(p, targetPed, 16, 0.0, 0.0, 0.0, 0.0, 0.0);
+			}	
+			addPed(p);
 			break;
 		case 6:
-			if (i > 0)
-				AI::TASK_COMBAT_PED(ped[i], ped[0], 0, 16);
+			if (p != peds.front()) {
+				AI::TASK_COMBAT_PED(p, peds.front(), 0, 16);
+			}	
+			addPed(p);
 			break;
 		case 7:
-			AI::TASK_STAY_IN_COVER(ped[i]);
+			AI::TASK_STAY_IN_COVER(p);
+			addPed(p);
 			break;
 
 		default:
