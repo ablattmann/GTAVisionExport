@@ -18,7 +18,7 @@ namespace fs = std::experimental::filesystem;
 #define SCREEN_HEIGHT 1080
 #define TIME_FACTOR 12.0
 #define FPS 30
-#define DISPLAY_FLAG TRUE
+#define DISPLAY_FLAG FALSE
 #define WANDERING_RADIUS 10.0
 #define MAX_PED_TO_CAM_DISTANCE 100.0
 #define DEMO FALSE
@@ -38,6 +38,22 @@ static char scenarioTypes[14][40]{
 	"WORLD_HUMAN_LEANING",
 	"WORLD_HUMAN_MUSCLE_FLEX",
 	"WORLD_HUMAN_YOGA"
+};
+
+static LPCSTR weather_types[13] = {
+		"EXTRASUNNY",
+		"CLEAR",
+		"CLOUDS",
+		"SMOG",
+		"FOGGY",
+		"OVERCAST",
+		"RAIN",
+		"THUNDER",
+		"CLEARING",
+		"NEUTRAL",
+		"SNOW",
+		"BLIZZARD",
+		"SNOWLIGHT",
 };
 
 std::string statusText;
@@ -158,7 +174,7 @@ DatasetAnnotator::DatasetAnnotator(std::string config_file, int _is_night)
 	readInScenarios();
 
 	this->max_samples = int_params_.getParam(this->max_samples_param_name_);
-	this->default_weather_ = string_params_.getParam(this->default_weather_param_name_);
+	this->default_weather_ = int_params_.getParam(this->default_weather_param_name_);
 	this->is_night = _is_night;
 
 	//srand((unsigned int)time(NULL)); //Initialises randomiser or sum' like that
@@ -263,6 +279,7 @@ int DatasetAnnotator::update()
 
 	Ped peds[max_number_of_peds];											// array of pedestrians
 	int number_of_peds = worldGetAllPeds(peds, max_number_of_peds);			// number of pedestrians taken
+	log_file << "The number of peds in update method is " << number_of_peds << "\n";
 	float C;																// coefficient used to adjust the size of rectangles drawn around the joints
 
 
@@ -534,14 +551,14 @@ void DatasetAnnotator::registerParams()
 	//register string params
 	string_params_.registerParam(this->output_file_param_name_);
 	string_params_.registerParam(this->scenario_file_param_name_);
-	string_params_.registerParam(this->default_weather_param_name_);
+
 
 	// register float params
 
 
 	// register int params
 	int_params_.registerParam(this->max_samples_param_name_);
-
+	int_params_.registerParam(this->default_weather_param_name_);
 }
 
 void DatasetAnnotator::get_2D_from_3D(Vector3 v, float *x2d, float *y2d) {
@@ -578,18 +595,18 @@ void DatasetAnnotator::get_2D_from_3D(Vector3 v, float *x2d, float *y2d) {
 	*y2d = (0.5f - (d.z * (f / d.y)) / SCREEN_HEIGHT);
 }
 
-void DatasetAnnotator::save_frame() {
-	if (!StretchBlt(hCaptureDC, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, hWindowDC, 0, 0, windowWidth, windowHeight, SRCCOPY | CAPTUREBLT)) {
-		auto err = GetLastError();
-		log_file << " StretchBlt returned the following error: " << err << "\n";
-	}
-	Gdiplus::Bitmap image(hCaptureBitmap, (HPALETTE)0);
-	std::wstring ws;
-	StringToWString(ws, current_output_path);
-
-	image.Save((ws + L"\\" + std::to_wstring(nsample) + L".png").c_str(), &pngClsid, NULL);
-	log_file << " Status of saving images is  " << image.GetLastStatus() << "\n";
-}
+//void DatasetAnnotator::save_frame() {
+//	if (!StretchBlt(hCaptureDC, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, hWindowDC, 0, 0, windowWidth, windowHeight, SRCCOPY | CAPTUREBLT)) {
+//		auto err = GetLastError();
+//		log_file << " StretchBlt returned the following error: " << err << "\n";
+//	}
+//	Gdiplus::Bitmap image(hCaptureBitmap, (HPALETTE)0);
+//	std::wstring ws;
+//	StringToWString(ws, current_output_path);
+//
+//	image.Save((ws + L"\\" + std::to_wstring(nsample) + L".png").c_str(), &pngClsid, NULL);
+//	log_file << " Status of saving images is  " << image.GetLastStatus() << "\n";
+//}
 
 void DatasetAnnotator::setCameraMoving(Vector3 A, Vector3 B, Vector3 C, int fov) {
 	
@@ -659,46 +676,46 @@ void DatasetAnnotator::setCameraFixed(Vector3 coords, Vector3 rot, float cam_z, 
 	this->fov = (int)CAM::GET_CAM_FOV(camera);
 }
 
-void DatasetAnnotator::spawnPed(Vector3 pos, int numPed) {
-
-	int i = 0;
-	Vector3 current;
-	Vector3 ped_spawned_coord[1024];
-	int n = (numPed % 2 == 0) ? numPed : numPed + 1;
-
-
-	for (int i = 0; i<n; i++) {
-		ped_spawned[i] = PED::CREATE_RANDOM_PED(pos.x + random_float(-3, 3), pos.y + random_float(-3, 3), pos.z - 0.4f);
-	}
-	WAIT(2000);
-	for (int i = 0; i<n; i++) {
-		ENTITY::SET_ENTITY_HEALTH(ped_spawned[i], 0);
-	}
-	WAIT(2000);
-	for (int i = 0; i<n; i++) {		
-		AI::CLEAR_PED_TASKS_IMMEDIATELY(ped_spawned[i]);
-		PED::RESURRECT_PED(ped_spawned[i]);
-		PED::REVIVE_INJURED_PED(ped_spawned[i]);
-		ENTITY::SET_ENTITY_COLLISION(ped_spawned[i], TRUE, TRUE);
-		PED::SET_PED_CAN_RAGDOLL(ped_spawned[i], TRUE);
-	}
-	WAIT(2000);
-	for (int i = 0; i<n; i++) {
-		ped_spawned_coord[i] = ENTITY::GET_ENTITY_COORDS(ped_spawned[i], TRUE);
-		//AI::TASK_USE_NEAREST_SCENARIO_TO_COORD(ped_spawned[i], current.x, current.y, current.z, 100.0, 1000 * 60 * 3);
-		//AI::TASK_WANDER_IN_AREA(ped_spawned[i], pos.x, pos.y, pos.z, WANDERING_RADIUS, 0.0, 0.0);
-		AI::TASK_WANDER_STANDARD(ped_spawned[i], 0x471c4000, 0);
-
-	}
-	WAIT(10000);
-	for (int i = 0; i<n; i++) {
-		current = ENTITY::GET_ENTITY_COORDS(ped_spawned[i], TRUE);
-		float dist = sqrt(pow(ped_spawned_coord[i].x - current.x, 2) + pow(ped_spawned_coord[i].y - current.y, 2) + pow(ped_spawned_coord[i].z - current.z, 2));
-		log_file << dist << std::endl;
-		if (dist < 1.0)
-			PED::DELETE_PED(&ped_spawned[i]);
-	}
-}
+//void DatasetAnnotator::spawnPed(Vector3 pos, int numPed) {
+//
+//	int i = 0;
+//	Vector3 current;
+//	Vector3 ped_spawned_coord[1024];
+//	int n = (numPed % 2 == 0) ? numPed : numPed + 1;
+//
+//
+//	for (int i = 0; i<n; i++) {
+//		ped_spawned[i] = PED::CREATE_RANDOM_PED(pos.x + random_float(-3, 3), pos.y + random_float(-3, 3), pos.z - 0.4f);
+//	}
+//	WAIT(2000);
+//	for (int i = 0; i<n; i++) {
+//		ENTITY::SET_ENTITY_HEALTH(ped_spawned[i], 0);
+//	}
+//	WAIT(2000);
+//	for (int i = 0; i<n; i++) {		
+//		AI::CLEAR_PED_TASKS_IMMEDIATELY(ped_spawned[i]);
+//		PED::RESURRECT_PED(ped_spawned[i]);
+//		PED::REVIVE_INJURED_PED(ped_spawned[i]);
+//		ENTITY::SET_ENTITY_COLLISION(ped_spawned[i], TRUE, TRUE);
+//		PED::SET_PED_CAN_RAGDOLL(ped_spawned[i], TRUE);
+//	}
+//	WAIT(2000);
+//	for (int i = 0; i<n; i++) {
+//		ped_spawned_coord[i] = ENTITY::GET_ENTITY_COORDS(ped_spawned[i], TRUE);
+//		//AI::TASK_USE_NEAREST_SCENARIO_TO_COORD(ped_spawned[i], current.x, current.y, current.z, 100.0, 1000 * 60 * 3);
+//		//AI::TASK_WANDER_IN_AREA(ped_spawned[i], pos.x, pos.y, pos.z, WANDERING_RADIUS, 0.0, 0.0);
+//		AI::TASK_WANDER_STANDARD(ped_spawned[i], 0x471c4000, 0);
+//
+//	}
+//	WAIT(10000);
+//	for (int i = 0; i<n; i++) {
+//		current = ENTITY::GET_ENTITY_COORDS(ped_spawned[i], TRUE);
+//		float dist = sqrt(pow(ped_spawned_coord[i].x - current.x, 2) + pow(ped_spawned_coord[i].y - current.y, 2) + pow(ped_spawned_coord[i].z - current.z, 2));
+//		log_file << dist << std::endl;
+//		if (dist < 1.0)
+//			PED::DELETE_PED(&ped_spawned[i]);
+//	}
+//}
 
 Vector3 DatasetAnnotator::teleportPlayer(Vector3 pos){
 												
@@ -791,7 +808,9 @@ void DatasetAnnotator::loadScenario()
 	// weather type and time
 	int time_h, time_m, time_s;
 	int wind;
-	std::string weather;
+	int weather=-1;
+
+	log_file.open(current_output_path + "\\log.txt");
 
 	fscanf_s(f, "%d ", &moving);
 	if (moving == 0) 
@@ -801,35 +820,8 @@ void DatasetAnnotator::loadScenario()
 
 	fscanf_s(f, "%f %f %f %f %f %f\n", &vTP1.x, &vTP1.y, &vTP1.z, &vTP1_rot.x, &vTP1_rot.y, &vTP1_rot.z);
 	fscanf_s(f, "%f %f %f %f %f %f\n", &vTP2.x, &vTP2.y, &vTP2.z, &vTP2_rot.x, &vTP2_rot.y, &vTP2_rot.z);
-	fscanf_s(f, "%d %s\n", &wind, weather);
+	fscanf_s(f, "%d %d\n", &wind, &weather);
 	fscanf_s(f, "%d %d %d\n", &time_h, &time_m, &time_s);
-
-	if (static_cast<bool>(wind)) {
-		GAMEPLAY::SET_WIND(1.0);
-		GAMEPLAY::SET_WIND_SPEED(11.99f);
-		GAMEPLAY::SET_WIND_DIRECTION(ENTITY::GET_ENTITY_HEADING(PLAYER::PLAYER_PED_ID()));
-	}
-
-	TIME::SET_CLOCK_TIME(time_h, time_m, time_s);
-	
-	// set weather to default weather, if not set
-	if (weather.empty()) {
-		weather = this->default_weather_;
-	}
-
-	GAMEPLAY::SET_RANDOM_WEATHER_TYPE();
-	GAMEPLAY::CLEAR_WEATHER_TYPE_PERSIST();
-	GAMEPLAY::SET_OVERRIDE_WEATHER((char *)(weather.c_str()));
-	GAMEPLAY::SET_WEATHER_TYPE_NOW((char *)(weather.c_str()));
-	GAMEPLAY::SET_WEATHER_TYPE_NOW_PERSIST((char *)(weather.c_str()));
-	// FIXME check if this works or if game crashes because 
-	/*char * act_weather = new char[weather.size()+1];
-	std::strcpy(act_weather, weather.c_str());*/
-	//GAMEPLAY::SET_WEATHER_TYPE_NOW_PERSIST((char *)(weather.c_str()));
-	//GAMEPLAY::CLEAR_WEATHER_TYPE_PERSIST();
-	//delete[] act_weather;
-
-	set_status_text("Set weather and time!", 1000, true);
 
 	Entity e = PLAYER::PLAYER_PED_ID();
 
@@ -891,6 +883,30 @@ void DatasetAnnotator::loadScenario()
 
 	set_status_text("Spawned Peds!",1000,true);
 
+	if (static_cast<bool>(wind)) {
+		GAMEPLAY::SET_WIND(1.0);
+		GAMEPLAY::SET_WIND_SPEED(11.99f);
+		GAMEPLAY::SET_WIND_DIRECTION(ENTITY::GET_ENTITY_HEADING(PLAYER::PLAYER_PED_ID()));
+	}
+
+	TIME::SET_CLOCK_TIME(time_h, time_m, time_s);
+
+	// set weather to default weather, if not set
+	if (weather == -1) {
+		weather = this->default_weather_;
+	}
+
+	GAMEPLAY::CLEAR_OVERRIDE_WEATHER();
+	GAMEPLAY::SET_WEATHER_TYPE_NOW_PERSIST((char *)weather_types[weather]);
+	GAMEPLAY::CLEAR_WEATHER_TYPE_PERSIST();
+
+	/*GAMEPLAY::SET_RANDOM_WEATHER_TYPE();
+	GAMEPLAY::SET_WEATHER_TYPE_NOW((char *)weather_types[weather]);
+	GAMEPLAY::CLEAR_OVERRIDE_WEATHER();
+	GAMEPLAY::SET_OVERRIDE_WEATHER((char *)weather_types[weather]);
+	GAMEPLAY::CLEAR_WEATHER_TYPE_PERSIST();
+	GAMEPLAY::SET_WEATHER_TYPE_PERSIST((char *)weather_types[weather]);*/
+
 	if (moving == 0)
 		DatasetAnnotator::setCameraFixed(cCoords, cRot, 0, fov);
 	else
@@ -907,7 +923,7 @@ void DatasetAnnotator::loadScenario()
 		return;
 	}
 
-	log_file.open(current_output_path + "\\log.txt");
+
 	coords_file.open(current_output_path + "\\coords.csv");
 	coords_file << "frame,pedestrian_id,joint_type,2D_x,2D_y,3D_x,3D_y,3D_z,occluded,self_occluded,";
 	coords_file << "cam_3D_x,cam_3D_y,cam_3D_z,cam_rot_x,cam_rot_y,cam_rot_z,fov\n";
@@ -1258,24 +1274,24 @@ void DatasetAnnotator::spawn_peds(Vector3 pos, Vector3 goFrom, Vector3 goTo, int
 	}
 }
 
-void DatasetAnnotator::walking_peds()
-{
-	for (int i = 0; i < nwPeds; i++)
-	{
-		if (PED::IS_PED_STOPPED(wPeds[i].ped) && !AI::GET_IS_TASK_ACTIVE(wPeds[i].ped, 426))
-		{
-			int currentTime = (TIME::GET_CLOCK_HOURS()) * 60 + TIME::GET_CLOCK_MINUTES();
-			if (wPeds[i].timeFix == -1)
-				wPeds[i].timeFix = currentTime;
-			if (wPeds[i].timeFix + wPeds[i].stopTime < currentTime)
-			{
-				wPeds[i].goingTo = !wPeds[i].goingTo;
-				wPeds[i].timeFix = -1;
-				if (wPeds[i].goingTo)
-					AI::TASK_GO_TO_COORD_ANY_MEANS(wPeds[i].ped, wPeds[i].to.x, wPeds[i].to.y, wPeds[i].to.z, wPeds[i].speed, 0, 0, 786603, 0xbf800000);
-				else
-					AI::TASK_GO_TO_COORD_ANY_MEANS(wPeds[i].ped, wPeds[i].from.x, wPeds[i].from.y, wPeds[i].from.z, wPeds[i].speed, 0, 0, 786603, 0xbf800000);
-			}
-		}
-	}
-}
+//void DatasetAnnotator::walking_peds()
+//{
+//	for (int i = 0; i < nwPeds; i++)
+//	{
+//		if (PED::IS_PED_STOPPED(wPeds[i].ped) && !AI::GET_IS_TASK_ACTIVE(wPeds[i].ped, 426))
+//		{
+//			int currentTime = (TIME::GET_CLOCK_HOURS()) * 60 + TIME::GET_CLOCK_MINUTES();
+//			if (wPeds[i].timeFix == -1)
+//				wPeds[i].timeFix = currentTime;
+//			if (wPeds[i].timeFix + wPeds[i].stopTime < currentTime)
+//			{
+//				wPeds[i].goingTo = !wPeds[i].goingTo;
+//				wPeds[i].timeFix = -1;
+//				if (wPeds[i].goingTo)
+//					AI::TASK_GO_TO_COORD_ANY_MEANS(wPeds[i].ped, wPeds[i].to.x, wPeds[i].to.y, wPeds[i].to.z, wPeds[i].speed, 0, 0, 786603, 0xbf800000);
+//				else
+//					AI::TASK_GO_TO_COORD_ANY_MEANS(wPeds[i].ped, wPeds[i].from.x, wPeds[i].from.y, wPeds[i].from.z, wPeds[i].speed, 0, 0, 786603, 0xbf800000);
+//			}
+//		}
+//	}
+//}

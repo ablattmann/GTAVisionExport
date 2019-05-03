@@ -30,7 +30,7 @@ constexpr int FPS = 1;
 constexpr int max_number_of_peds = 1024;					// size of the pedestrians array
 constexpr int number_of_joints = 21;							// size of the joint_ID subset
 constexpr float JOINT_DELTA = 0;
-constexpr int max_wpeds = 300;
+constexpr int max_wpeds = 512;
 
 typedef struct wPed {
 	Ped ped;
@@ -127,7 +127,7 @@ private:
 	Parameters<std::string > string_params_;
 	std::string output_path;
 	std::string current_output_path;
-	std::string default_weather_;
+	int default_weather_;
 	std::set<std::string> scenario_names_, already_recorded_scenarios_;
 	int sequence_index;
 	Player player;
@@ -181,7 +181,7 @@ private:
 
 	void registerParams();
 	void get_2D_from_3D(Vector3 v, float *x, float *y);
-	void save_frame();																		// function used to capture frames internally, then private
+/*	void save_frame();		*/																// function used to capture frames internally, then private
 	void setCameraFixed(Vector3 coords, Vector3 rot, float cam_z, int fov);
 	void setCameraMoving(Vector3 A, Vector3 B, Vector3 C, int fov);							// function used to set the camera stuff
 	void spawnPed(Vector3 spawnAreaCenter, int numPed);										// function used to spawn pedestrians at the beginning of the scenario
@@ -191,7 +191,7 @@ private:
 		int min_lenght, int time_between_walks, int spawning_radius, float speed);
 	void spawn_peds(Vector3 pos, Vector3 goFrom, Vector3 goTo, int npeds, int ngroup, int currentBehaviour,
 		int task_time, int type, int radius, int min_lenght, int time_between_walks, int spawning_radius, float speed);
-	void walking_peds();
+	//void walking_peds();
 	int myreadLine(FILE *f, Vector3 *pos, int *nPeds, int *ngroup, int *currentBehaviour, float *speed, Vector3 *goFrom, Vector3 *goTo, int *task_time,
 		int *type, int *radius, int *min_lenght, int *time_between_walks, int *spawning_radius);
 	void readInScenarios();
