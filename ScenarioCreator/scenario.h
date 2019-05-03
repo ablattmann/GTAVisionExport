@@ -17,6 +17,7 @@
 
 #pragma comment (lib,"Gdiplus.lib")
 
+constexpr int MAX_NUMBER_OVERALL_PEDS = 1024;
 
 template<typename ValueType>
 class Parameters {
@@ -133,6 +134,9 @@ private:
 
 	std::string files_path_;
 	int default_weather_;
+	int max_nr_peds_per_spawn;
+	int nr_peds_left_;
+
 
 	HWND hWnd;
 	HDC hWindowDC;
@@ -164,7 +168,6 @@ private:
 	void walking_peds();										// to make peds walking
 	void file_menu();											// function used to load or save files
 	void cancelLastLog();
-	void loadFile();
 
 	void draw_text(char *text , float x, float y, float scale);
 
@@ -172,6 +175,7 @@ private:
 
 	const std::string scenario_file_param_name_ = "scenario_file";
 	const std::string def_weather_param_name_ = "default_weather_name";
+	const std::string max_spawn_peds_param_name_ = "max_nr_peds_per_spawn";
 };
 
 int GetEncoderClsid(const WCHAR* format, CLSID* pClsid);

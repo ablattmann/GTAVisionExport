@@ -61,7 +61,8 @@ int activeLineIndexPeds = 0;
 int nPeds = 1;
 int currentBehaviour = 0;
 bool group = false;
-const int nMaxPeds = 1024;
+// The maximum number of pedestrians to spawn at one spot
+//const int nMaxPeds = 1024;
 const int numberTaks = 9;
 
 // weather parameters
@@ -328,7 +329,7 @@ inline void camLockChange()
 //	delete[] debug_c_str;
 //}
 
-inline void saveFile(const std::string& files_path, const int def_weather)
+inline int saveFile(const std::string& files_path, const int def_weather)
 {	
 	const int line_count = 13;
 	LPCSTR weather_lines[line_count] = {
@@ -389,6 +390,8 @@ inline void saveFile(const std::string& files_path, const int def_weather)
 
 	fname = fname + "  SAVED!";
 	set_status_text(fname);
+
+	return MAX_NUMBER_OVERALL_PEDS;
 }
 
 inline int readLine(FILE *f, Vector3 *pos)
@@ -463,7 +466,7 @@ void writeLogLine(float x, float y, float z)
 
 
 
-ScenarioCreator::ScenarioCreator(const std::string& parameters_file):string_params_(parameters_file),int_params_(parameters_file) {
+ScenarioCreator::ScenarioCreator(const std::string& parameters_file):string_params_(parameters_file),int_params_(parameters_file),nr_peds_left_(MAX_NUMBER_OVERALL_PEDS) {
 	PLAYER::SET_EVERYONE_IGNORE_PLAYER(PLAYER::PLAYER_PED_ID(), TRUE);
 	PLAYER::SET_POLICE_IGNORE_PLAYER(PLAYER::PLAYER_PED_ID(), TRUE);
 	PLAYER::CLEAR_PLAYER_WANTED_LEVEL(PLAYER::PLAYER_PED_ID());
@@ -476,7 +479,7 @@ ScenarioCreator::ScenarioCreator(const std::string& parameters_file):string_para
 
 	this->files_path_ = string_params_.getParam(this->scenario_file_param_name_) + "\\";
 	this->default_weather_ = int_params_.getParam(this->def_weather_param_name_);
-
+	this->max_nr_peds_per_spawn = int_params_.getParam(this->max_spawn_peds_param_name_);
 
 	GAMEPLAY::SET_TIME_SCALE(1.0);
 
@@ -582,6 +585,7 @@ void ScenarioCreator::registerParams()
 {
 	string_params_.registerParam(this->scenario_file_param_name_);
 	int_params_.registerParam(this->def_weather_param_name_);
+	int_params_.registerParam(this->max_spawn_peds_param_name_);
 }
 
 void ScenarioCreator::cameraCoords()
@@ -795,7 +799,7 @@ void ScenarioCreator::peds_menu()
 			switch (activeLineIndexPeds)
 			{
 			case 0:
-				if (nPeds == nMaxPeds)
+				if (nPeds == this->max_nr_peds_per_spawn)
 					nPeds = 0;
 				else
 					nPeds++;
@@ -846,12 +850,12 @@ void ScenarioCreator::peds_menu()
 		{
 			if (bLeft) {
 				if (nPeds == 0)
-					nPeds = nMaxPeds;
+					nPeds = this->max_nr_peds_per_spawn;
 				else
 					nPeds--;
 			}
 			else if (bRight) {
-				if (nPeds == nMaxPeds)
+				if (nPeds == this->max_nr_peds_per_spawn)
 					nPeds = 0;
 				else
 					nPeds++;
@@ -1564,9 +1568,25 @@ void ScenarioCreator::cancelLastLog() {
 
 void ScenarioCreator::spawn_peds(Vector3 pos, int num_ped) {
 
-	Ped ped[100];
-	Vector3 current;
-	int i = 0;
+	if (nr_peds_left_ <= 0) {
+		set_status_text("Cannot spawn more peds as limit given by Game is reached!");
+		return;
+	}
+
+	const auto actual_nr_peds = paramsLines[5].param == -1 ? (num_ped > nr_peds_left_ ? nr_peds_left_ : num_ped) : (num_ped > static_cast<int>(nr_peds_left_ /2) ? static_cast<int>(nr_peds_left_ / 2) : num_ped);
+	if (paramsLines[5].param == -1) {
+		nr_peds_left_ -= actual_nr_peds;
+	}
+	else {
+		nr_peds_left_ -= 2 * actual_nr_peds;
+	}
+	
+
+	std::vector<Ped> peds;
+	peds.reserve(actual_nr_peds);
+	//Ped ped[100];
+	//Vector3 current;
+	//int i = 0;
 
 	float rnX, rnY;
 	int rn;
@@ -1575,15 +1595,21 @@ void ScenarioCreator::spawn_peds(Vector3 pos, int num_ped) {
 
 
 	// spawning 'num_ped' pedestrians
-	for (int i = 0; i<num_ped; i++) {
-		ped[i] = PED::CREATE_RANDOM_PED(pos.x, pos.y, pos.z);
+	for (int i = 0; i<actual_nr_peds; i++) {
+		/*ped[i] = PED::CREATE_RANDOM_PED(pos.x, pos.y, pos.z);*/
+		peds.push_back(PED::CREATE_RANDOM_PED(pos.x, pos.y, pos.z));
 		WAIT(50);
 	}
 
 
 	// killing all pedestrians in order to prevent a bug
-	for (int i = 0; i<num_ped; i++) {
+	/*for (int i = 0; i<num_ped; i++) {
 		ENTITY::SET_ENTITY_HEALTH(ped[i], 0);
+		WAIT(50);
+	}*/
+
+	for (auto& ped : peds) {
+		ENTITY::SET_ENTITY_HEALTH(ped, 0);
 		WAIT(50);
 	}
 
@@ -1594,72 +1620,211 @@ void ScenarioCreator::spawn_peds(Vector3 pos, int num_ped) {
 		groupId = PED::CREATE_GROUP(1);
 
 	// resurrecting all pedestrians and assigning them a task
-	for (int i = 0; i<num_ped; i++) {
+	//for (int i = 0; i<num_ped; i++) {
+
+	//	WAIT(50);
+
+	//	AI::CLEAR_PED_TASKS_IMMEDIATELY(ped[i]);
+	//	PED::RESURRECT_PED(ped[i]);
+	//	PED::REVIVE_INJURED_PED(ped[i]);
+
+	//	// in order to prevent them from falling in hell
+	//	ENTITY::SET_ENTITY_COLLISION(ped[i], TRUE, TRUE);
+	//	PED::SET_PED_CAN_RAGDOLL(ped[i], TRUE);
+
+	//	current = ENTITY::GET_ENTITY_COORDS(ped[i], TRUE);
+
+	//	Ped targetPed = ped[0];
+	//	if (num_ped > 1)
+	//		targetPed = ped[1];
+
+	//	if (group) {
+	//		PED::SET_PED_AS_GROUP_MEMBER(ped[i], groupId);
+	//		PED::SET_PED_NEVER_LEAVES_GROUP(ped[i], true);
+	//	}
+	//	//srand((unsigned int)time(NULL));
+
+	//	PED::SET_BLOCKING_OF_NON_TEMPORARY_EVENTS(ped[i], TRUE);
+	//	PED::SET_PED_COMBAT_ATTRIBUTES(ped[i], 1, FALSE);
+	//	Vector3 pp = ENTITY::GET_ENTITY_COORDS(PLAYER::PLAYER_ID(), TRUE);
+	//	switch (currentBehaviour)
+	//	{
+	//	case 0:
+	//		rn = rand() % 12 + 2;
+	//		if (paramsLines[1].param == 0)
+	//			AI::TASK_USE_NEAREST_SCENARIO_TO_COORD(ped[i], current.x, current.y, current.z, 100.0, paramsLines[0].param);
+	//		else if (paramsLines[1].param == 1)
+	//			AI::TASK_START_SCENARIO_IN_PLACE(ped[i], scenarioTypes[rn], 0, true);
+	//		else
+	//			AI::TASK_START_SCENARIO_IN_PLACE(ped[i], scenarioTypes[paramsLines[1].param], 0, true);
+	//		break;
+	//	case 1:
+	//		AI::TASK_STAND_STILL(ped[i], paramsLines[0].param);
+	//		break;
+	//	case 2:
+	//		AI::TASK_USE_MOBILE_PHONE_TIMED(ped[i], paramsLines[0].param);
+	//		//AI::TASK_START_SCENARIO_AT_POSITION(ped[i], "PROP_HUMAN_SEAT_BENCH", current.x, current.y, current.z, 0, 100000, TRUE, TRUE);
+	//		break;
+	//	case 3:
+	//		AI::TASK_COWER(ped[i], paramsLines[0].param);
+	//		break;
+	//	case 4:
+	//		AI::TASK_WANDER_IN_AREA(ped[i], current.x, current.y, current.z, (float)paramsLines[2].param, (float)paramsLines[3].param, (float)paramsLines[4].param);
+	//		//AI::TASK_WANDER_IN_AREA(ped[i], current.x, current.y, current.z, 20.0f, 1.0f, 1.0f);
+	//		break;
+	//	case 5:
+	//		if (i > 0)
+	//			AI::TASK_CHAT_TO_PED(ped[i], ped[0], 16, 0.0, 0.0, 0.0, 0.0, 0.0);
+	//		else
+	//			AI::TASK_CHAT_TO_PED(ped[i], targetPed, 16, 0.0, 0.0, 0.0, 0.0, 0.0);
+	//		break;
+	//	case 6:
+	//		if (i>0)
+	//			AI::TASK_COMBAT_PED(ped[i], ped[0], 0, 16);
+	//		break;
+	//	case 7:
+	//		AI::TASK_STAY_IN_COVER(ped[i]);
+	//		break;
+	//	case 8: { 
+	//		if (paramsLines[5].param == -1) {
+	//			rnX = (float)(((rand() % 81) - 40) / 10.0);
+	//			rnY = (float)(((rand() % 81) - 40) / 10.0);
+	//		}
+	//		else {
+	//			rnX = (float)((rand() % (paramsLines[5].param * 2)) - paramsLines[5].param);
+	//			rnY = (float)((rand() % (paramsLines[5].param * 2)) - paramsLines[5].param);
+	//		}
+	//		
+	//		float speed_rnd = (float)(10 + rand() % 4) / 10;
+	//		addwPed(ped[i], coordsToVector(goFrom.x + rnX, goFrom.y + rnY, goFrom.z), coordsToVector(goTo.x + rnX, goTo.y + rnY, goTo.z), paramsLines[4].param, speed_rnd);
+	//		Object seq;
+	//		// waiting time proportional to distance
+	//		float atob = GAMEPLAY::GET_DISTANCE_BETWEEN_COORDS(goFrom.x, goFrom.y, goFrom.z, goTo.x, goTo.y, goTo.z, 1);
+	//		int max_time = (int)((atob / 2.5) * 1000);
+	//		max_time = 15000;
+
+	//		AI::OPEN_SEQUENCE_TASK(&seq);
+	//		AI::TASK_USE_MOBILE_PHONE_TIMED(0, rand() % max_time);
+	//		AI::TASK_GO_TO_COORD_ANY_MEANS(0, goFrom.x + rnX, goFrom.y + rnY, goFrom.z, speed_rnd, 0, 0, 786603, 0xbf800000);
+	//		AI::TASK_GO_TO_COORD_ANY_MEANS(0, goTo.x + rnX, goTo.y + rnY, goTo.z, speed_rnd, 0, 0, 786603, 0xbf800000);
+	//		AI::TASK_GO_TO_COORD_ANY_MEANS(0, goFrom.x + rnX, goFrom.y + rnY, goFrom.z, speed_rnd, 0, 0, 786603, 0xbf800000);
+	//		AI::TASK_GO_TO_COORD_ANY_MEANS(0, goTo.x + rnX, goTo.y + rnY, goTo.z, speed_rnd, 0, 0, 786603, 0xbf800000);
+	//		AI::TASK_GO_TO_COORD_ANY_MEANS(0, goFrom.x + rnX, goFrom.y + rnY, goFrom.z, speed_rnd, 0, 0, 786603, 0xbf800000);
+	//		AI::TASK_GO_TO_COORD_ANY_MEANS(0, goTo.x + rnX, goTo.y + rnY, goTo.z, speed_rnd, 0, 0, 786603, 0xbf800000);
+	//		AI::CLOSE_SEQUENCE_TASK(seq);
+	//		AI::TASK_PERFORM_SEQUENCE(ped[i], seq);
+	//		AI::CLEAR_SEQUENCE_TASK(&seq);
+
+	//		if (paramsLines[5].param != -1) {
+	//			rnX = (float)((rand() % (paramsLines[5].param * 2)) - paramsLines[5].param);
+	//			rnY = (float)((rand() % (paramsLines[5].param * 2)) - paramsLines[5].param);
+	//			speed_rnd = (float)(10 + rand() % 4) / 10;
+
+	//			int ped_specular = PED::CREATE_RANDOM_PED(goTo.x, goTo.y, goTo.z);
+	//			WAIT(100);
+	//			
+	//			ENTITY::SET_ENTITY_HEALTH(ped_specular, 0);
+	//			WAIT(100);
+	//			AI::CLEAR_PED_TASKS_IMMEDIATELY(ped_specular);
+	//			PED::RESURRECT_PED(ped_specular);
+	//			PED::REVIVE_INJURED_PED(ped_specular);
+
+	//			// in order to prevent them from falling in hell
+	//			ENTITY::SET_ENTITY_COLLISION(ped_specular, TRUE, TRUE);
+	//			PED::SET_PED_CAN_RAGDOLL(ped_specular, TRUE);
+
+	//			PED::SET_BLOCKING_OF_NON_TEMPORARY_EVENTS(ped_specular, TRUE);
+	//			PED::SET_PED_COMBAT_ATTRIBUTES(ped_specular, 1, FALSE);
+	//			addwPed(ped_specular, coordsToVector(goTo.x + rnX, goTo.y + rnY, goTo.z), coordsToVector(goFrom.x + rnX, goFrom.y + rnY, goFrom.z), paramsLines[4].param, speed_rnd);
+
+	//			Object seq2;
+	//			AI::OPEN_SEQUENCE_TASK(&seq2);
+	//			AI::TASK_USE_MOBILE_PHONE_TIMED(0, rand() % max_time);
+	//			AI::TASK_GO_TO_COORD_ANY_MEANS(0, goTo.x + rnX, goTo.y + rnY, goTo.z, speed_rnd, 0, 0, 786603, 0xbf800000);
+	//			AI::TASK_GO_TO_COORD_ANY_MEANS(0, goFrom.x + rnX, goFrom.y + rnY, goFrom.z, speed_rnd, 0, 0, 786603, 0xbf800000);
+	//			AI::TASK_GO_TO_COORD_ANY_MEANS(0, goTo.x + rnX, goTo.y + rnY, goTo.z, speed_rnd, 0, 0, 786603, 0xbf800000);
+	//			AI::TASK_GO_TO_COORD_ANY_MEANS(0, goFrom.x + rnX, goFrom.y + rnY, goFrom.z, speed_rnd, 0, 0, 786603, 0xbf800000);
+	//			AI::TASK_GO_TO_COORD_ANY_MEANS(0, goTo.x + rnX, goTo.y + rnY, goTo.z, speed_rnd, 0, 0, 786603, 0xbf800000);
+	//			AI::TASK_GO_TO_COORD_ANY_MEANS(0, goFrom.x + rnX, goFrom.y + rnY, goFrom.z, speed_rnd, 0, 0, 786603, 0xbf800000);
+	//			AI::CLOSE_SEQUENCE_TASK(seq2);
+	//			AI::TASK_PERFORM_SEQUENCE(ped_specular, seq2);
+	//			AI::CLEAR_SEQUENCE_TASK(&seq2);
+	//		}
+	//	}
+	//		break;
+	//	default:
+	//		break;
+	//	}
+
+	//}
+
+	for (auto& p : peds) {
 
 		WAIT(50);
 
-		AI::CLEAR_PED_TASKS_IMMEDIATELY(ped[i]);
-		PED::RESURRECT_PED(ped[i]);
-		PED::REVIVE_INJURED_PED(ped[i]);
+		AI::CLEAR_PED_TASKS_IMMEDIATELY(p);
+		PED::RESURRECT_PED(p);
+		PED::REVIVE_INJURED_PED(p);
 
 		// in order to prevent them from falling in hell
-		ENTITY::SET_ENTITY_COLLISION(ped[i], TRUE, TRUE);
-		PED::SET_PED_CAN_RAGDOLL(ped[i], TRUE);
+		ENTITY::SET_ENTITY_COLLISION(p, TRUE, TRUE);
+		PED::SET_PED_CAN_RAGDOLL(p, TRUE);
 
-		current = ENTITY::GET_ENTITY_COORDS(ped[i], TRUE);
+		const Vector3 current = ENTITY::GET_ENTITY_COORDS(p, TRUE);
 
-		Ped targetPed = ped[0];
+		const auto targetPed = actual_nr_peds > 1 ? *std::next(peds.begin()) : peds.front();
+		/*Ped targetPed = ped[0];
 		if (num_ped > 1)
-			targetPed = ped[1];
+			targetPed = ped[1];*/
 
 		if (group) {
-			PED::SET_PED_AS_GROUP_MEMBER(ped[i], groupId);
-			PED::SET_PED_NEVER_LEAVES_GROUP(ped[i], true);
+			PED::SET_PED_AS_GROUP_MEMBER(p, groupId);
+			PED::SET_PED_NEVER_LEAVES_GROUP(p, true);
 		}
 		//srand((unsigned int)time(NULL));
 
-		PED::SET_BLOCKING_OF_NON_TEMPORARY_EVENTS(ped[i], TRUE);
-		PED::SET_PED_COMBAT_ATTRIBUTES(ped[i], 1, FALSE);
+		PED::SET_BLOCKING_OF_NON_TEMPORARY_EVENTS(p, TRUE);
+		PED::SET_PED_COMBAT_ATTRIBUTES(p, 1, FALSE);
 		Vector3 pp = ENTITY::GET_ENTITY_COORDS(PLAYER::PLAYER_ID(), TRUE);
 		switch (currentBehaviour)
 		{
 		case 0:
 			rn = rand() % 12 + 2;
 			if (paramsLines[1].param == 0)
-				AI::TASK_USE_NEAREST_SCENARIO_TO_COORD(ped[i], current.x, current.y, current.z, 100.0, paramsLines[0].param);
+				AI::TASK_USE_NEAREST_SCENARIO_TO_COORD(p, current.x, current.y, current.z, 100.0, paramsLines[0].param);
 			else if (paramsLines[1].param == 1)
-				AI::TASK_START_SCENARIO_IN_PLACE(ped[i], scenarioTypes[rn], 0, true);
+				AI::TASK_START_SCENARIO_IN_PLACE(p, scenarioTypes[rn], 0, true);
 			else
-				AI::TASK_START_SCENARIO_IN_PLACE(ped[i], scenarioTypes[paramsLines[1].param], 0, true);
+				AI::TASK_START_SCENARIO_IN_PLACE(p, scenarioTypes[paramsLines[1].param], 0, true);
 			break;
 		case 1:
-			AI::TASK_STAND_STILL(ped[i], paramsLines[0].param);
+			AI::TASK_STAND_STILL(p, paramsLines[0].param);
 			break;
 		case 2:
-			AI::TASK_USE_MOBILE_PHONE_TIMED(ped[i], paramsLines[0].param);
+			AI::TASK_USE_MOBILE_PHONE_TIMED(p, paramsLines[0].param);
 			//AI::TASK_START_SCENARIO_AT_POSITION(ped[i], "PROP_HUMAN_SEAT_BENCH", current.x, current.y, current.z, 0, 100000, TRUE, TRUE);
 			break;
 		case 3:
-			AI::TASK_COWER(ped[i], paramsLines[0].param);
+			AI::TASK_COWER(p, paramsLines[0].param);
 			break;
 		case 4:
-			AI::TASK_WANDER_IN_AREA(ped[i], current.x, current.y, current.z, (float)paramsLines[2].param, (float)paramsLines[3].param, (float)paramsLines[4].param);
+			AI::TASK_WANDER_IN_AREA(p, current.x, current.y, current.z, (float)paramsLines[2].param, (float)paramsLines[3].param, (float)paramsLines[4].param);
 			//AI::TASK_WANDER_IN_AREA(ped[i], current.x, current.y, current.z, 20.0f, 1.0f, 1.0f);
 			break;
 		case 5:
-			if (i > 0)
-				AI::TASK_CHAT_TO_PED(ped[i], ped[0], 16, 0.0, 0.0, 0.0, 0.0, 0.0);
+			if (p != peds.front())
+				AI::TASK_CHAT_TO_PED(p, peds.front(), 16, 0.0, 0.0, 0.0, 0.0, 0.0);
 			else
-				AI::TASK_CHAT_TO_PED(ped[i], targetPed, 16, 0.0, 0.0, 0.0, 0.0, 0.0);
+				AI::TASK_CHAT_TO_PED(p, targetPed, 16, 0.0, 0.0, 0.0, 0.0, 0.0);
 			break;
 		case 6:
-			if (i>0)
-				AI::TASK_COMBAT_PED(ped[i], ped[0], 0, 16);
+			if (p != peds.front())
+				AI::TASK_COMBAT_PED(p, peds.front(), 0, 16);
 			break;
 		case 7:
-			AI::TASK_STAY_IN_COVER(ped[i]);
+			AI::TASK_STAY_IN_COVER(p);
 			break;
-		case 8: { 
+		case 8: {
 			if (paramsLines[5].param == -1) {
 				rnX = (float)(((rand() % 81) - 40) / 10.0);
 				rnY = (float)(((rand() % 81) - 40) / 10.0);
@@ -1668,9 +1833,9 @@ void ScenarioCreator::spawn_peds(Vector3 pos, int num_ped) {
 				rnX = (float)((rand() % (paramsLines[5].param * 2)) - paramsLines[5].param);
 				rnY = (float)((rand() % (paramsLines[5].param * 2)) - paramsLines[5].param);
 			}
-			
+
 			float speed_rnd = (float)(10 + rand() % 4) / 10;
-			addwPed(ped[i], coordsToVector(goFrom.x + rnX, goFrom.y + rnY, goFrom.z), coordsToVector(goTo.x + rnX, goTo.y + rnY, goTo.z), paramsLines[4].param, speed_rnd);
+			addwPed(p, coordsToVector(goFrom.x + rnX, goFrom.y + rnY, goFrom.z), coordsToVector(goTo.x + rnX, goTo.y + rnY, goTo.z), paramsLines[4].param, speed_rnd);
 			Object seq;
 			// waiting time proportional to distance
 			float atob = GAMEPLAY::GET_DISTANCE_BETWEEN_COORDS(goFrom.x, goFrom.y, goFrom.z, goTo.x, goTo.y, goTo.z, 1);
@@ -1686,7 +1851,7 @@ void ScenarioCreator::spawn_peds(Vector3 pos, int num_ped) {
 			AI::TASK_GO_TO_COORD_ANY_MEANS(0, goFrom.x + rnX, goFrom.y + rnY, goFrom.z, speed_rnd, 0, 0, 786603, 0xbf800000);
 			AI::TASK_GO_TO_COORD_ANY_MEANS(0, goTo.x + rnX, goTo.y + rnY, goTo.z, speed_rnd, 0, 0, 786603, 0xbf800000);
 			AI::CLOSE_SEQUENCE_TASK(seq);
-			AI::TASK_PERFORM_SEQUENCE(ped[i], seq);
+			AI::TASK_PERFORM_SEQUENCE(p, seq);
 			AI::CLEAR_SEQUENCE_TASK(&seq);
 
 			if (paramsLines[5].param != -1) {
@@ -1696,7 +1861,7 @@ void ScenarioCreator::spawn_peds(Vector3 pos, int num_ped) {
 
 				int ped_specular = PED::CREATE_RANDOM_PED(goTo.x, goTo.y, goTo.z);
 				WAIT(100);
-				
+
 				ENTITY::SET_ENTITY_HEALTH(ped_specular, 0);
 				WAIT(100);
 				AI::CLEAR_PED_TASKS_IMMEDIATELY(ped_specular);
@@ -1725,7 +1890,7 @@ void ScenarioCreator::spawn_peds(Vector3 pos, int num_ped) {
 				AI::CLEAR_SEQUENCE_TASK(&seq2);
 			}
 		}
-			break;
+				break;
 		default:
 			break;
 		}
@@ -1753,67 +1918,6 @@ void ScenarioCreator::walking_peds()
 			}
 		}
 	}
-}
-
-void ScenarioCreator::loadFile()
-{
-	char fname[50] = "";
-	strcat(fname, files_path_.c_str());
-	strcat(fname, fileName);
-	f = fopen(fname, "r");
-	Vector3 cCoords, cRot;
-	Vector3 vTP1, vTP2, vTP1_rot, vTP2_rot;
-	int camMov;
-
-	int stop;
-	fscanf_s(f, "%d ", &camMov);
-	if (camMov == 0)
-		fscanf_s(f, "%f %f %f %d %f %f %f\n", &cCoords.x, &cCoords.y, &cCoords.z, &stop, &cRot.x, &cRot.y, &cRot.z);
-
-	for (int i = 0; i < 10; i++) {
-		Ped p = PED::CREATE_RANDOM_PED(cCoords.x, cCoords.y, cCoords.z);
-		ENTITY::SET_PED_AS_NO_LONGER_NEEDED(&p);
-	}
-
-	fscanf_s(f, "%f %f %f %f %f %f\n", &vTP1.x, &vTP1.y, &vTP1.z, &vTP1_rot.x, &vTP1_rot.y, &vTP1_rot.z);
-	fscanf_s(f, "%f %f %f %f %f %f\n", &vTP2.x, &vTP2.y, &vTP2.z, &vTP2_rot.x, &vTP2_rot.y, &vTP2_rot.z);
-
-	Entity e = PLAYER::PLAYER_PED_ID();
-
-	ENTITY::SET_ENTITY_COORDS_NO_OFFSET(e, vTP1.x, vTP1.y, vTP1.z, 0, 0, 1);
-	lockCam(vTP1, vTP1_rot);
-	WAIT(10000);
-
-	ENTITY::SET_ENTITY_COORDS_NO_OFFSET(e, vTP2.x, vTP2.y, vTP2.z, 0, 0, 1);
-	lockCam(vTP2, vTP2_rot);
-	WAIT(10000);
-
-	//ENTITY::SET_ENTITY_COORDS_NO_OFFSET(e, -1031.126831, -2726.527344, 14.794693, 0, 0, 1);
-	ENTITY::SET_ENTITY_COORDS_NO_OFFSET(e, cCoords.x, cCoords.y, cCoords.z, 0, 0, 1);
-
-	fixCoords = cCoords;
-	WAIT(100);
-
-	camLock = false;
-	camLockChange();
-	visible = true;
-	ENTITY::SET_ENTITY_VISIBLE(PLAYER::PLAYER_PED_ID(), FALSE, true);
-	CAM::SET_CAM_ROT(activeCam, cRot.x, cRot.y, cRot.z, 2);
-	CAM::SET_CAM_COORD(activeCam, cCoords.x, cCoords.y, cCoords.z);
-
-	Vector3 pos;
-	while (readLine(f, &pos) >= 0) {
-		spawn_peds(pos, nPeds);
-		update();
-	}
-
-	if (stop == 1)
-		stopCoords = true;
-
-	fclose(f);
-
-	sprintf_s(fname, "\"%s\" LOADED", fileName);
-	set_status_text(fname);
 }
 
 
@@ -1882,11 +1986,13 @@ void ScenarioCreator::file_menu()
 				break;
 			case 1:
 				if (strcmp(fileName, "None") != 0)
-					saveFile(files_path_,default_weather_);
+					// save file and reset nr_peds_left_ for next scenario
+					nr_peds_left_ = saveFile(files_path_,default_weather_);
 				break;
 			case 2:
 				sprintf_s(fileName, "log_%d.txt", nFiles + 1);
-				saveFile(files_path_, default_weather_);
+				// save file and reset nr_peds_left_ for next scenario
+				nr_peds_left_ = saveFile(files_path_, default_weather_);
 				break;
 			case 3:
 				strcpy(logString, "");
