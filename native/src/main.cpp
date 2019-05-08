@@ -9,6 +9,7 @@
 #include <string>
 #include <filesystem>
 #include <wincodec.h>
+#include <wingdi.h>
 #include <cstdio>
 #include <MinHook.h>
 #include <cassert>
@@ -74,14 +75,11 @@ static int draw_indexed_count = 0;
 const std::string parameters_file = "param\\parameters.txt";
 static std::unique_ptr<DatasetAnnotator> annotator=std::make_unique<DatasetAnnotator>(parameters_file,false);
 
-
 // FIXME make a read-function for the annotator in order not to require updating it every time
 // the read-function will be called everytime , a new record is started
 // FIXME add also a reset function, if required, that resets some states, here's a need of some more information
 // FIXME the constructor should only initialize some required ressources, that will last for the entire time, it lives
 //static std::unique_ptr<DatasetAnnotator> annotator = std::make_unique<DatasetAnnotator>(parameters_file, false);
-
-
 
 
 static void (_stdcall ID3D11DeviceContext::* origDrawInstanced)(UINT, UINT, INT) = nullptr;
@@ -115,12 +113,132 @@ int __stdcall DllMain(HMODULE hinstance, DWORD reason, LPVOID lpReserved)
 	return TRUE;
 }
 
+inline int StringToWString(std::wstring &ws, const std::string &s)
+{
+	std::wstring wsTmp(s.begin(), s.end());
+	ws = wsTmp;
+	return 0;
+}
+
+inline void exportStencilToBitmap(void** buf, std::size_t size, const std::string& output_path) {
+	const auto window_width = annotator->getWindowWidth();
+	const auto window_height = annotator->getWindowHeight();
+	
+	std::wstring ws;
+	StringToWString(ws, output_path);
+
+	FILE* log = fopen("GTANativePlugin.log", "a");
+
+	if (static_cast<std::size_t>(window_width * window_height) != size) {
+
+		
+
+		int res_x, res_y;
+		GRAPHICS::GET_SCREEN_RESOLUTION(&res_x,&res_y);
+
+		if (size == res_y * res_x) {
+			fprintf(log, "WARNING: window height and width are not equal to number of elements in semantic mask due to Screen Resolution! Saving downsampled mask.\n");
+			auto helper = static_cast<BYTE *>(*buf);
+			Gdiplus::Bitmap image(res_x, res_y, res_x, PixelFormat8bppIndexed, helper);
+			fprintf(log, "Status after image instantiating is %d\n", image.GetLastStatus());
+
+			const auto bmp_id = annotator->getCLSID();
+			image.Save(ws.c_str(), &bmp_id, NULL);
+
+			fprintf(log, "Status after image saving is %d\n", image.GetLastStatus());
+			
+		}
+		else {
+			fprintf(log, "WARNING: window height and width are not equal to number of elements in semantic mask due to Screen Resolution! Not saving semantic mask.\n");
+		}
+		fclose(log);
+		return;
+	}
+
+	fprintf(log, "Before instantiating helper.\n");
+	auto helper = static_cast<BYTE *>(*buf);
+	fprintf(log, "After instantiating helper.\n");
+	//for (std::size_t i = 0; i < size ; i++) {
+	//	// use mask to only retain the first 4 Bits
+	//	helper[i] = helper[i] & 0x0F;
+	//}
+	//fprintf(log, "After mask loop.\n");
+	/*Gdiplus::PixelFormat px_format = Gdiplus::PixekFormat.PixelFormat8bppIndexed;*/
+	//BYTE* ordered = new BYTE[window_height * window_width];
+	//for (int x = 0; x < window_width; x++) {
+	//	for (int y = 0; y < window_height; y++) {
+	//		// fixme add bpp here and try again, see copyTexToVector for Reference 
+	//		ordered[x + y * window_width] = helper[x * window_height + y ];
+
+	//	}
+	//}
+	fprintf(log, "After mask loop.\n");
+	
+	//auto img_data = static_cast<BYTE *>(*buf);
+	// stride is window width as we want to constructn image with one byte depth
+	Gdiplus::Bitmap image(window_width, window_height, window_width, PixelFormat8bppIndexed , helper);
+	fprintf(log, "Status after image instantiating is %d\n", image.GetLastStatus());
+
+	const auto bmp_id = annotator->getCLSID();
+	image.Save(ws.c_str(), &bmp_id , NULL);
+	
+	fprintf(log,"Status after image saving is %d\n", image.GetLastStatus());
+	fclose(log);
+	//delete[] ordered;
+}
+
+inline void exportPNG(void** buf, std::size_t size, const std::string& output_path) {
+	
+	const auto window_width = annotator->getWindowWidth();
+	const auto window_height = annotator->getWindowHeight();
+
+	std::wstring ws;
+	StringToWString(ws, output_path);
+
+	FILE* log = fopen("GTANativePlugin.log", "a");
+	
+	// multiply with 4 because of RGBA representation of the images
+	if (size != window_width * window_height*4) {
+		int res_x, res_y;
+		GRAPHICS::GET_SCREEN_RESOLUTION(&res_x, &res_y);
+
+		if (size == res_y * res_x * 4) {
+			fprintf(log, "WARNING: window height and width are not equal to number of elements in semantic mask due to Screen Resolution! Saving downsampled image.\n");
+			auto helper = static_cast<BYTE *>(*buf);
+			Gdiplus::Bitmap image(res_x, res_y, res_x, PixelFormat32bppARGB, helper);
+			fprintf(log, "Status after image instantiating is %d\n", image.GetLastStatus());
+
+			const auto png_id = annotator->getCLSIDPNG();
+			image.Save(ws.c_str(), &png_id, NULL);
+
+			fprintf(log, "Status after image saving is %d\n", image.GetLastStatus());
+
+		}
+		else {
+			fprintf(log, "WARNING: window height and width are not equal to number of elements in semantic mask due to Screen Resolution! Not saving image.\n");
+		}
+		fclose(log);
+		return;
+	}
+
+	fprintf(log,"Saving image.\n");
+	auto helper = static_cast<BYTE *>(*buf);
+	Gdiplus::Bitmap image(window_width, window_height, window_width, PixelFormat32bppARGB, helper);
+	fprintf(log, "Status after image instantiating is %d\n", image.GetLastStatus());
+
+	const auto png_id = annotator->getCLSIDPNG();
+	image.Save(ws.c_str(), &png_id, NULL);
+
+	fprintf(log, "Status after image saving is %d\n", image.GetLastStatus());
+}
+
 inline void saveBuffersAndAnnotations(const int frame_nr) 
 {	
 	 //here we have to export all the data required, based on pushing a specific button (I would suggest 'L')
-	const std::string depth_path = "depth_" + std::to_string(frame_nr) + ".raw";
-	const std::string stenc_path = "stencil_" + std::to_string(frame_nr) + ".raw";
-	const std::string col_path = "color_" + std::to_string(frame_nr) + ".raw";
+	//const std::string depth_path = "depth_" + std::to_string(frame_nr) + ".raw";
+	//const std::string stenc_path = "stencil_" + std::to_string(frame_nr) + ".raw";
+	const std::string col_path = "frame_" + std::to_string(frame_nr) + ".raw";
+	const std::string sem_string = "sem_map_" + std::to_string(frame_nr) + ".bmp";
 	// logging, only at first frame,  in order to avoid spamming the programm
 	//if (frame_nr == 0) {
 	//	FILE* log = fopen("GTANativePlugin.log", "a");
@@ -132,17 +250,20 @@ inline void saveBuffersAndAnnotations(const int frame_nr)
 	// save Files
 
 	std::string out = annotator->getOutputPath();
-	auto f = fopen((out + "\\" + depth_path).c_str(), "w");
+	// auto f = fopen((out + "\\" + depth_path).c_str(), "w");
 	void* buf;
-	int size = export_get_depth_buffer(&buf);
+	/*int size = export_get_depth_buffer(&buf);
 	fwrite(buf, 1, size, f);
-	fclose(f);
-	f = fopen((out + "\\" + stenc_path).c_str(), "w");
-	size = export_get_stencil_buffer(&buf);
-	fwrite(buf, 1, size, f);
-	fclose(f);
-	f = fopen((out + "\\" + col_path).c_str(), "w");
+	fclose(f)*/;
+	/*f = fopen((out + "\\" + stenc_path).c_str(), "w");*/
+	int size = export_get_stencil_buffer(&buf);
+	exportStencilToBitmap(&buf,size,out + "\\" + sem_string);
+	/*fwrite(buf, 1, size, f);
+	fclose(f);*/
+	auto f = fopen((out + "\\" + col_path).c_str(), "w");
 	size = export_get_color_buffer(&buf);
+	// FIXME debug this function in order not to be dependend of postprocessing
+	//exportPNG(&buf,size,out + "\\" + col_path);
 	fwrite(buf, 1, size, f);
 	fclose(f);
 }
@@ -338,6 +459,8 @@ void presentCallback(void* chain)
 		// datasatAnnnotator extracts the files to respective repo
 		const int frame_nr = annotator->update();
 
+		// WAIT
+
 		// store buffers into the same repo
 		if(frame_nr>=0) saveBuffersAndAnnotations(frame_nr);
 		
@@ -361,8 +484,8 @@ void reactionOnKeyboard() {
 		if (IsKeyJustUp(VK_F3) && !recording) {
 			annotator->drawText("Loading Scenario!");
 			annotator->loadScenario();
-			recording = true;
 			Sleep(100);
+			recording = true;
 			//annotator->drawText("Start recording!");
 		}else if ((IsKeyJustUp(VK_F2) || IsKeyJustUp(VK_ESCAPE)) && recording) {
 			recording = false;

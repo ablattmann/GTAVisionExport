@@ -25,7 +25,7 @@ constexpr int SCREEN_WIDTH = 1920;
 constexpr int SCREEN_HEIGHT = 1080;
 constexpr float TIME_FACTOR = 12.0;
 // set FPS to one in order to have signifikant changings during recorded frames
-constexpr int FPS = 1;
+constexpr int FPS = 30;
 
 constexpr int max_number_of_peds = 1024;					// size of the pedestrians array
 constexpr int number_of_joints = 21;							// size of the joint_ID subset
@@ -119,6 +119,11 @@ public:
 	int getMaxFrames() const { return this->max_samples; }
 	void loadScenario();
 	void resetStates();
+	CLSID getCLSID() const { return this->bmpClsid; }
+	CLSID getCLSIDPNG() const { return this->pngClsid; }
+	int getWindowWidth() const{ return this->windowWidth; }
+	int getWindowHeight() const{ return this->windowHeight; }
+
 	~DatasetAnnotator();
 
 private:
@@ -165,6 +170,7 @@ private:
 	int fov;
 	int max_waiting_time = 0;
 	int is_night;
+	Object seq_count_ = 0;
 
 	int n_peds_left = max_number_of_peds;
 
@@ -179,7 +185,7 @@ private:
 	std::ofstream coords_file;								// file used to save joints coordinates data
 	std::ofstream log_file;									// file used to save joints coordinates data
 
-	CLSID pngClsid;
+	CLSID bmpClsid, pngClsid;
 	ULONG_PTR gdiplusToken;
 
 	void registerParams();
@@ -201,6 +207,7 @@ private:
 	//void addwPed_scenario(Ped p);
 	void addPed(const Ped ped);
 	Cam lockCam(Vector3 pos, Vector3 rot);
+	Object createNewSeq();
 
 	// parameter names
 	const std::string output_file_param_name_ = "output_file";

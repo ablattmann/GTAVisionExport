@@ -14,9 +14,9 @@
 
 namespace fs = std::experimental::filesystem;
 
-#define SCREEN_WIDTH 1920
-#define SCREEN_HEIGHT 1080
-#define TIME_FACTOR 12.0
+//#define SCREEN_WIDTH 1920
+//#define SCREEN_HEIGHT 1080
+//#define TIME_FACTOR 12.0
 #define FPS 30
 #define DISPLAY_FLAG FALSE
 #define WANDERING_RADIUS 10.0
@@ -108,12 +108,12 @@ int GetEncoderClsid(const WCHAR* format, CLSID* pClsid)
 	return -1;  // Failure
 }
 
-int StringToWString(std::wstring &ws, const std::string &s)
-{
-	std::wstring wsTmp(s.begin(), s.end());
-	ws = wsTmp;
-	return 0;
-}
+//int StringToWString(std::wstring &ws, const std::string &s)
+//{
+//	std::wstring wsTmp(s.begin(), s.end());
+//	ws = wsTmp;
+//	return 0;
+//}
 
 inline std::vector<std::string> splitString(const std::string& s, char delimiter) {
 	std::vector<std::string> tokens;
@@ -615,7 +615,7 @@ void DatasetAnnotator::get_2D_from_3D(Vector3 v, float *x2d, float *y2d) {
 //		auto err = GetLastError();
 //		log_file << " StretchBlt returned the following error: " << err << "\n";
 //	}
-//	Gdiplus::Bitmap image(hCaptureBitmap, (HPALETTE)0);
+	//Gdiplus::Bitmap image(hCaptureBitmap, (HPALETTE)0);
 //	std::wstring ws;
 //	StringToWString(ws, current_output_path);
 //
@@ -652,10 +652,10 @@ void DatasetAnnotator::setCameraMoving(Vector3 A, Vector3 B, Vector3 C, int fov)
 	PED::SET_BLOCKING_OF_NON_TEMPORARY_EVENTS(ped_with_cam, TRUE);
 	PED::SET_PED_COMBAT_ATTRIBUTES(ped_with_cam, 1, FALSE);
 
-	Object seq;
+	Object seq = createNewSeq();
 	AI::OPEN_SEQUENCE_TASK(&seq);
 	//AI::TASK_USE_MOBILE_PHONE_TIMED(0, max_waiting_time + 10000);
-	AI::TASK_STAND_STILL(0, max_waiting_time + 10000);
+	AI::TASK_STAND_STILL(0, 10000);
 	AI::TASK_GO_TO_COORD_ANY_MEANS(0, A.x, A.y, A.z, 1.0, 0, 0, 786603, 0xbf800000);
 	AI::TASK_GO_TO_COORD_ANY_MEANS(0, B.x, B.y, B.z, 1.0, 0, 0, 786603, 0xbf800000);
 	AI::TASK_GO_TO_COORD_ANY_MEANS(0, C.x, C.y, C.z, 1.0, 0, 0, 786603, 0xbf800000);
@@ -763,6 +763,13 @@ Cam DatasetAnnotator::lockCam(Vector3 pos, Vector3 rot) {
 	return lockedCam;
 }
 
+Object DatasetAnnotator::createNewSeq()
+{
+	const Object current = seq_count_;
+	seq_count_++;
+	return current;
+}
+
 void DatasetAnnotator::loadScenario()
 {	
 	if (scenario_names_.empty()) {
@@ -824,6 +831,17 @@ void DatasetAnnotator::loadScenario()
 	int time_h, time_m, time_s;
 	int wind;
 	int weather=-1;
+
+	// Note: These files have formerly been in the constructor
+	const auto splitted_act_name = splitString(splitString(actual_name, '_').back(), '.').front();
+	current_output_path = output_path + "\\seq_" + splitted_act_name;
+	current_output_path = output_path + "\\seq_" + splitted_act_name;
+
+	if (!CreateDirectory(current_output_path.c_str(), NULL) && !ERROR_ALREADY_EXISTS == GetLastError()) {
+		set_status_text("WARNING: Cannot create output directory for some reasons. Check access rights!", 1000, true);
+		// fixme add error handling here
+		return;
+	}
 
 	log_file.open(current_output_path + "\\log.txt");
 
@@ -926,16 +944,7 @@ void DatasetAnnotator::loadScenario()
 	else
 		DatasetAnnotator::setCameraMoving(A, B, C, fov);
 
-	// Note: These files have formerly been in the constructor
-	const auto splitted_act_name = splitString(splitString(actual_name, '_').back(),'.').front(); 
-	current_output_path = output_path + "\\seq_" + splitted_act_name;
-	current_output_path = output_path + "\\seq_" + splitted_act_name;
 
-	if (!CreateDirectory(current_output_path.c_str(), NULL) && !ERROR_ALREADY_EXISTS == GetLastError()) {
-		set_status_text("WARNING: Cannot create output directory for some reasons. Check access rights!", 1000, true);
-		// fixme add error handling here
-		return;
-	}
 
 
 	coords_file.open(current_output_path + "\\coords.csv");
@@ -985,7 +994,7 @@ void DatasetAnnotator::loadScenario()
 	if (DEMO)
 		this->secondsBeforeSaveImages = 10;
 	else
-		this->secondsBeforeSaveImages = max_waiting_time / 1000 + 10 + 10;
+		this->secondsBeforeSaveImages = 20;
 
 	lastRecordingTime = std::clock() + (clock_t)((float)(secondsBeforeSaveImages * CLOCKS_PER_SEC));
 
@@ -1017,7 +1026,8 @@ void DatasetAnnotator::loadScenario()
 	Gdiplus::GdiplusStartupInput gdiplusStartupInput;
 	
 	GdiplusStartup(&gdiplusToken, &gdiplusStartupInput, NULL);
-	GetEncoderClsid(L"image/png", &pngClsid);
+	GetEncoderClsid(L"image/bmp", &bmpClsid);
+	GetEncoderClsid(L"image/tiff", &pngClsid);
 
 	set_status_text("End of LoadScenario Routine!", 1000, true);
 }
@@ -1046,6 +1056,9 @@ void DatasetAnnotator::resetStates()
 	}
 	// reset time scale in order to make the user see that recording has ended
 	GAMEPLAY::SET_TIME_SCALE(1.0f);
+
+	// Set the count for the sequence tasks to zero
+	seq_count_ = 0;
 
 	
 	Gdiplus::GdiplusShutdown(gdiplusToken);
@@ -1207,16 +1220,16 @@ void DatasetAnnotator::spawn_peds_flow(Vector3 pos, Vector3 goFrom, Vector3 goTo
 		}*/
 		float speed_rnd = (float)(10 + rand() % 4) / 10;
 		addPed(p.first);
-		Object seq;
+		auto seq = createNewSeq();
 		// waiting time proportional to distance
 		float atob = GAMEPLAY::GET_DISTANCE_BETWEEN_COORDS(goFrom.x, goFrom.y, goFrom.z, goTo.x, goTo.y, goTo.z, 1);
-		int max_time = (int)((atob / 2.5) * 1000);
+		//int max_time = (int)((atob / 2.5) * 1000);
 
-		if (max_time > max_waiting_time)
-			max_waiting_time = max_time;
+		//if (max_time > max_waiting_time)
+		//	max_waiting_time = max_time;
 
 		AI::OPEN_SEQUENCE_TASK(&seq);
-		AI::TASK_USE_MOBILE_PHONE_TIMED(0, rand() % max_time);
+		//AI::TASK_USE_MOBILE_PHONE_TIMED(0, rand() % max_time);
 		AI::TASK_GO_TO_COORD_ANY_MEANS(0, goFrom.x + rnX, goFrom.y + rnY, goFrom.z, speed_rnd, 0, 0, 786603, 0xbf800000);
 		AI::TASK_GO_TO_COORD_ANY_MEANS(0, goTo.x + rnX, goTo.y + rnY, goTo.z, speed_rnd, 0, 0, 786603, 0xbf800000);
 		AI::TASK_GO_TO_COORD_ANY_MEANS(0, goFrom.x + rnX, goFrom.y + rnY, goFrom.z, speed_rnd, 0, 0, 786603, 0xbf800000);
@@ -1239,9 +1252,9 @@ void DatasetAnnotator::spawn_peds_flow(Vector3 pos, Vector3 goFrom, Vector3 goTo
 			/*addwPed(p.second, coordsToVector(goTo.x + rnX_spec, goTo.y + rnY_spec, goTo.z), coordsToVector(goFrom.x + rnX_spec, goFrom.y + rnY_spec, goFrom.z), time_between_walks, speed_rnd);*/
 			addPed(p.second);
 
-			Object seq2;
+			auto seq2= createNewSeq();
 			AI::OPEN_SEQUENCE_TASK(&seq2);
-			AI::TASK_USE_MOBILE_PHONE_TIMED(0, rand() % max_time);
+			//AI::TASK_USE_MOBILE_PHONE_TIMED(0, rand() % max_time);
 			AI::TASK_GO_TO_COORD_ANY_MEANS(0, goTo.x + rnX_spec, goTo.y + rnY_spec, goTo.z, speed_rnd, 0, 0, 786603, 0xbf800000);
 			AI::TASK_GO_TO_COORD_ANY_MEANS(0, goFrom.x + rnX_spec, goFrom.y + rnY_spec, goFrom.z, speed_rnd, 0, 0, 786603, 0xbf800000);
 			AI::TASK_GO_TO_COORD_ANY_MEANS(0, goTo.x + rnX_spec, goTo.y + rnY_spec, goTo.z, speed_rnd, 0, 0, 786603, 0xbf800000);
