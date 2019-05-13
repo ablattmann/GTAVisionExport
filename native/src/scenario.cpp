@@ -14,9 +14,6 @@
 
 namespace fs = std::experimental::filesystem;
 
-//#define SCREEN_WIDTH 1920
-//#define SCREEN_HEIGHT 1080
-//#define TIME_FACTOR 12.0
 #define FPS 30
 #define DISPLAY_FLAG FALSE
 #define WANDERING_RADIUS 10.0
@@ -107,13 +104,6 @@ int GetEncoderClsid(const WCHAR* format, CLSID* pClsid)
 	free(pImageCodecInfo);
 	return -1;  // Failure
 }
-
-//int StringToWString(std::wstring &ws, const std::string &s)
-//{
-//	std::wstring wsTmp(s.begin(), s.end());
-//	ws = wsTmp;
-//	return 0;
-//}
 
 inline std::vector<std::string> splitString(const std::string& s, char delimiter) {
 	std::vector<std::string> tokens;
@@ -535,32 +525,6 @@ void DatasetAnnotator::updateStatusText() const {
 	update_status_text();
 }
 
-//void DatasetAnnotator::addwPed(Ped p, Vector3 from, Vector3 to, int stop, float spd)
-//{
-//	if (nwPeds > max_wpeds)
-//		return;
-//
-//	wPeds[nwPeds].ped = p;
-//	wPeds[nwPeds].from = from;
-//	wPeds[nwPeds].to = to;
-//	wPeds[nwPeds].stopTime = stop;
-//	wPeds[nwPeds].speed = spd;
-//
-//	decreaseNPedsLeft();
-//	nwPeds++;
-//}
-//
-//void DatasetAnnotator::addwPed_scenario(Ped p)
-//{
-//	if (nwPeds_scenario > max_wpeds)
-//		return;
-//
-//	wPeds_scenario[nwPeds_scenario].ped = p;
-//	decreaseNPedsLeft();
-//
-//	nwPeds_scenario++;
-//}
-
 void DatasetAnnotator::registerParams()
 {	
 	//register string params
@@ -691,46 +655,6 @@ void DatasetAnnotator::setCameraFixed(Vector3 coords, Vector3 rot, float cam_z, 
 	this->fov = (int)CAM::GET_CAM_FOV(camera);
 }
 
-//void DatasetAnnotator::spawnPed(Vector3 pos, int numPed) {
-//
-//	int i = 0;
-//	Vector3 current;
-//	Vector3 ped_spawned_coord[1024];
-//	int n = (numPed % 2 == 0) ? numPed : numPed + 1;
-//
-//
-//	for (int i = 0; i<n; i++) {
-//		ped_spawned[i] = PED::CREATE_RANDOM_PED(pos.x + random_float(-3, 3), pos.y + random_float(-3, 3), pos.z - 0.4f);
-//	}
-//	WAIT(2000);
-//	for (int i = 0; i<n; i++) {
-//		ENTITY::SET_ENTITY_HEALTH(ped_spawned[i], 0);
-//	}
-//	WAIT(2000);
-//	for (int i = 0; i<n; i++) {		
-//		AI::CLEAR_PED_TASKS_IMMEDIATELY(ped_spawned[i]);
-//		PED::RESURRECT_PED(ped_spawned[i]);
-//		PED::REVIVE_INJURED_PED(ped_spawned[i]);
-//		ENTITY::SET_ENTITY_COLLISION(ped_spawned[i], TRUE, TRUE);
-//		PED::SET_PED_CAN_RAGDOLL(ped_spawned[i], TRUE);
-//	}
-//	WAIT(2000);
-//	for (int i = 0; i<n; i++) {
-//		ped_spawned_coord[i] = ENTITY::GET_ENTITY_COORDS(ped_spawned[i], TRUE);
-//		//AI::TASK_USE_NEAREST_SCENARIO_TO_COORD(ped_spawned[i], current.x, current.y, current.z, 100.0, 1000 * 60 * 3);
-//		//AI::TASK_WANDER_IN_AREA(ped_spawned[i], pos.x, pos.y, pos.z, WANDERING_RADIUS, 0.0, 0.0);
-//		AI::TASK_WANDER_STANDARD(ped_spawned[i], 0x471c4000, 0);
-//
-//	}
-//	WAIT(10000);
-//	for (int i = 0; i<n; i++) {
-//		current = ENTITY::GET_ENTITY_COORDS(ped_spawned[i], TRUE);
-//		float dist = sqrt(pow(ped_spawned_coord[i].x - current.x, 2) + pow(ped_spawned_coord[i].y - current.y, 2) + pow(ped_spawned_coord[i].z - current.z, 2));
-//		log_file << dist << std::endl;
-//		if (dist < 1.0)
-//			PED::DELETE_PED(&ped_spawned[i]);
-//	}
-//}
 
 Vector3 DatasetAnnotator::teleportPlayer(Vector3 pos){
 												
@@ -875,11 +799,6 @@ void DatasetAnnotator::loadScenario()
 
 	set_status_text("Teleported cam!", 1000, true);
 
-	/*if (moving == 0)
-		Scenario::teleportPlayer(cCoords);
-	else
-		Scenario::teleportPlayer(A);*/
-
 	if (moving == 0)
 		ENTITY::SET_ENTITY_COORDS_NO_OFFSET(e, cCoords.x, cCoords.y, cCoords.z, 0, 0, 1);
 	else
@@ -931,13 +850,6 @@ void DatasetAnnotator::loadScenario()
 	GAMEPLAY::CLEAR_OVERRIDE_WEATHER();
 	GAMEPLAY::SET_WEATHER_TYPE_NOW_PERSIST((char *)weather_types[weather]);
 	GAMEPLAY::CLEAR_WEATHER_TYPE_PERSIST();
-
-	/*GAMEPLAY::SET_RANDOM_WEATHER_TYPE();
-	GAMEPLAY::SET_WEATHER_TYPE_NOW((char *)weather_types[weather]);
-	GAMEPLAY::CLEAR_OVERRIDE_WEATHER();
-	GAMEPLAY::SET_OVERRIDE_WEATHER((char *)weather_types[weather]);
-	GAMEPLAY::CLEAR_WEATHER_TYPE_PERSIST();
-	GAMEPLAY::SET_WEATHER_TYPE_PERSIST((char *)weather_types[weather]);*/
 
 	if (moving == 0)
 		DatasetAnnotator::setCameraFixed(cCoords, cRot, 0, fov);
@@ -1082,17 +994,7 @@ void DatasetAnnotator::spawn_peds_flow(Vector3 pos, Vector3 goFrom, Vector3 goTo
 
 	std::vector<std::pair<Ped, Ped>> peds;
 	peds.reserve(actual_npeds);
-	
 
-	//std::vector<Ped> ped;
-	//ped.reserve(max_len);
-	//std::vector<Ped> ped_specular;
-	//ped_specular.reserve(max_len);
-	//Ped ped[n_peds_left];
-	
-	//Ped ped_specular[static_cast<int>(max_wpeds / 2)];
-
-	//float rnX, rnY;
 
 	for (int i = 0; i < actual_npeds; i++) {
 		peds.push_back(std::make_pair(PED::CREATE_RANDOM_PED(goFrom.x, goFrom.y, goFrom.z), PED::CREATE_RANDOM_PED(goTo.x, goTo.y, goTo.z)));
@@ -1103,10 +1005,7 @@ void DatasetAnnotator::spawn_peds_flow(Vector3 pos, Vector3 goFrom, Vector3 goTo
 		WAIT(500);
 	else
 		WAIT(2000);
-	/*for (int i = 0; i<npeds; i++) {
-		ENTITY::SET_ENTITY_HEALTH(ped[i], 0);
-		WAIT(50);
-	}*/
+
 	for (auto& p : peds) {
 		ENTITY::SET_ENTITY_HEALTH(p.first, 0);
 		WAIT(50);
@@ -1117,15 +1016,6 @@ void DatasetAnnotator::spawn_peds_flow(Vector3 pos, Vector3 goFrom, Vector3 goTo
 		WAIT(500);
 	else
 		WAIT(2000);
-	//for (int i = 0; i < npeds; i++) {
-	//	AI::CLEAR_PED_TASKS_IMMEDIATELY(ped[i]);
-	//	PED::RESURRECT_PED(ped[i]);
-	//	PED::REVIVE_INJURED_PED(ped[i]);
-	//	ENTITY::SET_ENTITY_COLLISION(ped[i], TRUE, TRUE);
-	//	PED::SET_PED_CAN_RAGDOLL(ped[i], TRUE);
-	//	PED::SET_BLOCKING_OF_NON_TEMPORARY_EVENTS(ped[i], TRUE);
-	//	PED::SET_PED_COMBAT_ATTRIBUTES(ped[i], 1, FALSE);
-	//}
 		
 	for (auto& p : peds) {
 		// main ped 
@@ -1150,52 +1040,6 @@ void DatasetAnnotator::spawn_peds_flow(Vector3 pos, Vector3 goFrom, Vector3 goTo
 	}
 
 
-		//if (DEMO)
-		//	WAIT(500);
-		//else
-		//	WAIT(2000);
-		//for (int i = 0; i < actual_npeds; i++) {
-		//	ped_specular.push_back(PED::CREATE_RANDOM_PED(goTo.x, goTo.y, goTo.z));
-		//	WAIT(100);
-		//}
-		//
-		//if (DEMO)
-		//	WAIT(500);
-		//else
-		//	WAIT(2000);
-		///*for (int i = 0; i<npeds; i++) {
-		//	ENTITY::SET_ENTITY_HEALTH(ped_specular[i], 0);
-		//	WAIT(50);
-		//}*/
-
-		//for (auto& p : ped_specular) {
-		//	ENTITY::SET_ENTITY_HEALTH(p, 0);
-		//	WAIT(50);
-		//}
-
-		//if (DEMO)
-		//	WAIT(500);
-		//else
-		//	WAIT(2000);
-		////for (int i = 0; i<npeds; i++) {
-		////	AI::CLEAR_PED_TASKS_IMMEDIATELY(ped_specular[i]);
-		////	PED::RESURRECT_PED(ped_specular[i]);
-		////	PED::REVIVE_INJURED_PED(ped_specular[i]);
-		////	ENTITY::SET_ENTITY_COLLISION(ped_specular[i], TRUE, TRUE);
-		////	PED::SET_PED_CAN_RAGDOLL(ped_specular[i], TRUE);
-		////	PED::SET_BLOCKING_OF_NON_TEMPORARY_EVENTS(ped_specular[i], TRUE);
-		////	PED::SET_PED_COMBAT_ATTRIBUTES(ped_specular[i], 1, FALSE);
-		////}
-
-		//for(auto& p:ped_specular) {
-		//	AI::CLEAR_PED_TASKS_IMMEDIATELY(p);
-		//	PED::RESURRECT_PED(p);
-		//	PED::REVIVE_INJURED_PED(p);
-		//	ENTITY::SET_ENTITY_COLLISION(p, TRUE, TRUE);
-		//	PED::SET_PED_CAN_RAGDOLL(p, TRUE);
-		//	PED::SET_BLOCKING_OF_NON_TEMPORARY_EVENTS(p, TRUE);
-		//	PED::SET_PED_COMBAT_ATTRIBUTES(p, 1, FALSE);
-		//}
 
 		
 	if (DEMO)
@@ -1210,14 +1054,7 @@ void DatasetAnnotator::spawn_peds_flow(Vector3 pos, Vector3 goFrom, Vector3 goTo
 		
 		const auto rnX = spawning_radius == -1 ? static_cast<float>(((rand() % 81) - 40) / 10.0) : static_cast<float>((rand() % (spawning_radius * 2)) - spawning_radius);
 		const auto rnY = spawning_radius == -1 ? static_cast<float>(((rand() % 81) - 40) / 10.0) : static_cast<float>((rand() % (spawning_radius * 2)) - spawning_radius);
-		/*if (spawning_radius == -1) {
-			rnX = (float)(((rand() % 81) - 40) / 10.0);
-			rnY = (float)(((rand() % 81) - 40) / 10.0);
-		}
-		else {
-			rnX = (float)((rand() % (spawning_radius * 2)) - spawning_radius);
-			rnY = (float)((rand() % (spawning_radius * 2)) - spawning_radius);
-		}*/
+	
 		float speed_rnd = (float)(10 + rand() % 4) / 10;
 		addPed(p.first);
 		auto seq = createNewSeq();
@@ -1268,10 +1105,7 @@ void DatasetAnnotator::spawn_peds_flow(Vector3 pos, Vector3 goFrom, Vector3 goTo
 			AI::CLEAR_SEQUENCE_TASK(&seq2);
 		}
 	}
-	/*if (DEMO)
-		WAIT(500);
-	else
-		WAIT(2000);*/
+
 }
 
 void DatasetAnnotator::spawn_peds(Vector3 pos, Vector3 goFrom, Vector3 goTo, int npeds, int ngroup, int currentBehaviour,
@@ -1291,9 +1125,6 @@ void DatasetAnnotator::spawn_peds(Vector3 pos, Vector3 goFrom, Vector3 goTo, int
 	std::vector<Ped> peds;
 	peds.reserve(actual_npeds);
 
-	/*Ped ped[100];
-	Vector3 current;
-	int i = 0;*/
 
 	for (int i = 0; i < actual_npeds; i++) {
 		peds.push_back(PED::CREATE_RANDOM_PED(pos.x, pos.y, pos.z));
@@ -1314,15 +1145,7 @@ void DatasetAnnotator::spawn_peds(Vector3 pos, Vector3 goFrom, Vector3 goTo, int
 		WAIT(50);
 	}
 	WAIT(500);
-	/*for (int i = 0; i < npeds; i++) {
-		AI::CLEAR_PED_TASKS_IMMEDIATELY(ped[i]);
-		PED::RESURRECT_PED(ped[i]);
-		PED::REVIVE_INJURED_PED(ped[i]);
-		ENTITY::SET_ENTITY_COLLISION(ped[i], TRUE, TRUE);
-		PED::SET_PED_CAN_RAGDOLL(ped[i], TRUE);
-		PED::SET_BLOCKING_OF_NON_TEMPORARY_EVENTS(ped[i], TRUE);
-		PED::SET_PED_COMBAT_ATTRIBUTES(ped[i], 1, FALSE);
-	}*/
+	
 
 	for (auto& p: peds) {
 		AI::CLEAR_PED_TASKS_IMMEDIATELY(p);
@@ -1406,25 +1229,3 @@ void DatasetAnnotator::spawn_peds(Vector3 pos, Vector3 goFrom, Vector3 goTo, int
 
 	}
 }
-
-//void DatasetAnnotator::walking_peds()
-//{
-//	for (int i = 0; i < nwPeds; i++)
-//	{
-//		if (PED::IS_PED_STOPPED(wPeds[i].ped) && !AI::GET_IS_TASK_ACTIVE(wPeds[i].ped, 426))
-//		{
-//			int currentTime = (TIME::GET_CLOCK_HOURS()) * 60 + TIME::GET_CLOCK_MINUTES();
-//			if (wPeds[i].timeFix == -1)
-//				wPeds[i].timeFix = currentTime;
-//			if (wPeds[i].timeFix + wPeds[i].stopTime < currentTime)
-//			{
-//				wPeds[i].goingTo = !wPeds[i].goingTo;
-//				wPeds[i].timeFix = -1;
-//				if (wPeds[i].goingTo)
-//					AI::TASK_GO_TO_COORD_ANY_MEANS(wPeds[i].ped, wPeds[i].to.x, wPeds[i].to.y, wPeds[i].to.z, wPeds[i].speed, 0, 0, 786603, 0xbf800000);
-//				else
-//					AI::TASK_GO_TO_COORD_ANY_MEANS(wPeds[i].ped, wPeds[i].from.x, wPeds[i].from.y, wPeds[i].from.z, wPeds[i].speed, 0, 0, 786603, 0xbf800000);
-//			}
-//		}
-//	}
-//}
