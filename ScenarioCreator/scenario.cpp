@@ -301,33 +301,6 @@ inline void camLockChange()
 	}
 }
 
-//inline void drawText(char *text, float x, float y, float scale) {
-//	UI::SET_TEXT_FONT(0);
-//	UI::SET_TEXT_SCALE(scale, scale);
-//	UI::SET_TEXT_COLOUR(255, 255, 255, 245);
-//	UI::SET_TEXT_WRAP(0.0, 1.0);
-//	UI::SET_TEXT_CENTRE(1);
-//	UI::SET_TEXT_DROPSHADOW(2, 2, 0, 0, 0);
-//	UI::SET_TEXT_EDGE(1, 0, 0, 0, 205);
-//	UI::_SET_TEXT_ENTRY((char*)"STRING");
-//	UI::_ADD_TEXT_COMPONENT_STRING(text);
-//	UI::_DRAW_TEXT(y, x);
-//}
-//
-//inline void writeDebugText(const std::string& text, const std::string& path_spec) {
-//	const std::string debug_string = path_spec + " is \"" + text + "\"";
-//	char * debug_c_str = new char[debug_string.size() + 1];
-//	std::strcpy(debug_c_str, debug_string.c_str());
-//	// show for 3 seconds before contuniuing
-//	DWORD max_time = 3000;
-//	DWORD end_time = GetTickCount() + max_time;
-//
-//	do {
-//		drawText(debug_c_str, 0.8f, 0.8f, 0.5f);
-//	} while (GetTickCount() < end_time);
-//	
-//	delete[] debug_c_str;
-//}
 
 inline int saveFile(const std::string& files_path, const int def_weather)
 {	
@@ -387,6 +360,9 @@ inline int saveFile(const std::string& files_path, const int def_weather)
 	// logString saves the information about pedestrians
 	fprintf_s(f, "%s", logString);
 	fclose(f);
+
+	// reset logString
+	strcpy(logString, "");
 
 	fname = fname + "  SAVED!";
 	set_status_text(fname);
