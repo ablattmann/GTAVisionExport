@@ -10,7 +10,6 @@
 #include <mutex>
 #include <chrono>
 #include <condition_variable>
-#include <Eigen/Core>
 using Microsoft::WRL::ComPtr;
 using std::unique_ptr;
 using std::vector;
@@ -18,7 +17,6 @@ using std::mutex;
 using std::condition_variable;
 using std::unique_lock;
 using std::swap;
-using Eigen::Matrix4f;
 using std::chrono::high_resolution_clock;
 using std::chrono::time_point;
 using std::chrono::duration;
@@ -32,7 +30,6 @@ static ComPtr<ID3D11Buffer> constantBuf;
 static vector<unsigned char> depthBuf;
 static vector<unsigned char> colorBuf;
 static vector<unsigned char> stencilBuf;
-static rage_matrices constants;
 static bool request_copy = false;
 static mutex copy_mtx;
 static condition_variable copy_cv;
@@ -277,14 +274,6 @@ extern "C" {
 		unpack_depth(lastDev.Get(), lastCtx.Get(), depthRes.Get(), depthBuf, stencilBuf);
 		*buf = &stencilBuf[0];
 		return stencilBuf.size();
-	}
-	__declspec(dllexport) int export_get_constant_buffer(rage_matrices* buf) {
-		if (constantBuf == nullptr) return -1;
-		D3D11_MAPPED_SUBRESOURCE res = { 0 };
-		lastCtx->Map(constantBuf.Get(), 0, D3D11_MAP_READ, 0, &res);
-		memmove(buf, res.pData, sizeof(constants));
-		lastCtx->Unmap(constantBuf.Get(), 0);
-		return sizeof(rage_matrices);
 	}
 
 	__declspec(dllexport) long long int export_get_last_depth_time() {

@@ -20,7 +20,6 @@
 #include <d3dcompiler.h>
 #include <vector>
 #include <memory>
-#include <Eigen/Core>
 #include "scenario.h"
 #include "keyboard.h"
 using Microsoft::WRL::ComPtr;
@@ -30,9 +29,6 @@ using std::chrono::milliseconds;
 using std::chrono::time_point;
 using std::chrono::system_clock;
 using std::vector;
-using Eigen::Matrix4f;
-using Eigen::Vector3f;
-using Eigen::Vector4f;
 typedef void(*draw_indexed_hook_t)(ID3D11DeviceContext*, UINT, UINT, INT);
 // ScriptHookV Functions
 void scriptMain();
@@ -264,14 +260,14 @@ inline void saveBuffersAndAnnotations(const int frame_nr)
 	/*fwrite(buf, 1, size, f);
 	fclose(f);*/
 	void* buf;
-	auto f = fopen((out + "\\" + col_path).c_str(), "w");
-	size = export_get_color_buffer(&buf);
-	// FIXME debug this function in order not to be dependend of postprocessing
-	//exportPNG(&buf,size,out + "\\" + col_path);
-	fwrite(buf, 1, size, f);
-	fclose(f);
-	buf = nullptr;
-	stenc_buf = nullptr;
+	//auto f = fopen((out + "\\" + col_path).c_str(), "w");
+	//size = export_get_color_buffer(&buf);
+	//// FIXME debug this function in order not to be dependend of postprocessing
+	////exportPNG(&buf,size,out + "\\" + col_path);
+	//fwrite(buf, 1, size, f);
+	//fclose(f);
+	//buf = nullptr;
+	//stenc_buf = nullptr;
 }
 
 // This is a template function for hooks for arbitrary devices, i.e. arbitrary hook functions
