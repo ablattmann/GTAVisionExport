@@ -59,11 +59,11 @@ static void unpack_depth(ID3D11Device* dev, ID3D11DeviceContext* ctx, ID3D11Reso
 	if (hr != S_OK) throw std::system_error(hr, std::system_category());
 	if (dst.size() != src_desc.Height * src_desc.Width * 4) dst = vector<unsigned char>(src_desc.Height * src_desc.Width * 4);
 	if (stencil.size() != src_desc.Height * src_desc.Width) stencil = vector<unsigned char>(src_desc.Height * src_desc.Width);
-	//FILE* log = fopen("GTANativePlugin.log", "a");
-	//fprintf(log, "Source width is %zu; source height is %zu.\n",src_desc.Width,src_desc.Height);
-	//fprintf(log, "Stencil size is %zu", stencil.size());
-	//fprintf(log, "screenResX is %d; screenResY is %d.\n", screenResX, screenResY);
-	//fclose(log);
+	FILE* log = fopen("GTANativePlugin.log", "a");
+	fprintf(log, "Source width is %zu; source height is %zu.\n",src_desc.Width,src_desc.Height);
+	fprintf(log, "Stencil size is %zu\n", stencil.size());
+	fprintf(log, "screenResX is %d; screenResY is %d.\n", screenResX, screenResY);
+	fclose(log);
 	/*if (screenResX >= src_desc.Width)
 	{*/
 		for (int x = 0; x < src_desc.Width; ++x)
@@ -77,6 +77,18 @@ static void unpack_depth(ID3D11Device* dev, ID3D11DeviceContext* ctx, ID3D11Reso
 				memmove(stencil_p, src_f + 1, 1);
 			}
 		}
+
+	//for (int x = 0; x < 1920; ++x)
+	//{
+	//	for (int y = 0; y < 1080; ++y)
+	//	{
+	//		const float* src_f = (const float*)((const char*)src_map.pData + src_map.RowPitch*y + (x * 8));
+	//		unsigned char* dst_p = &dst[src_desc.Width * 4 * y + (x * 4)];
+	//		unsigned char* stencil_p = &stencil[src_desc.Width * y + x];
+	//		memmove(dst_p, src_f, 4);
+	//		memmove(stencil_p, src_f + 1, 1);
+	//	}
+	//}
 	//}
 	//else
 	//{

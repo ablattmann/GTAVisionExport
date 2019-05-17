@@ -302,7 +302,7 @@ inline void camLockChange()
 }
 
 
-inline int saveFile(const std::string& files_path, const int def_weather)
+inline int saveFile(const std::string& files_path, const int def_weather, std::vector<Ped>& overall_peds)
 {	
 	const int line_count = 13;
 	LPCSTR weather_lines[line_count] = {
@@ -366,6 +366,11 @@ inline int saveFile(const std::string& files_path, const int def_weather)
 
 	fname = fname + "  SAVED!";
 	set_status_text(fname);
+
+	for (auto& p : overall_peds) {
+		PED::DELETE_PED(&p);
+		WAIT(10);
+	}
 
 	return MAX_NUMBER_OVERALL_PEDS;
 }
@@ -1577,6 +1582,8 @@ void ScenarioCreator::spawn_peds(Vector3 pos, int num_ped) {
 		WAIT(50);
 	}
 
+	overall_peds.insert(overall_peds.end(),peds.begin(),peds.end());
+
 
 	// killing all pedestrians in order to prevent a bug
 	/*for (int i = 0; i<num_ped; i++) {
@@ -1595,144 +1602,6 @@ void ScenarioCreator::spawn_peds(Vector3 pos, int num_ped) {
 	if (group)
 		groupId = PED::CREATE_GROUP(1);
 
-	// resurrecting all pedestrians and assigning them a task
-	//for (int i = 0; i<num_ped; i++) {
-
-	//	WAIT(50);
-
-	//	AI::CLEAR_PED_TASKS_IMMEDIATELY(ped[i]);
-	//	PED::RESURRECT_PED(ped[i]);
-	//	PED::REVIVE_INJURED_PED(ped[i]);
-
-	//	// in order to prevent them from falling in hell
-	//	ENTITY::SET_ENTITY_COLLISION(ped[i], TRUE, TRUE);
-	//	PED::SET_PED_CAN_RAGDOLL(ped[i], TRUE);
-
-	//	current = ENTITY::GET_ENTITY_COORDS(ped[i], TRUE);
-
-	//	Ped targetPed = ped[0];
-	//	if (num_ped > 1)
-	//		targetPed = ped[1];
-
-	//	if (group) {
-	//		PED::SET_PED_AS_GROUP_MEMBER(ped[i], groupId);
-	//		PED::SET_PED_NEVER_LEAVES_GROUP(ped[i], true);
-	//	}
-	//	//srand((unsigned int)time(NULL));
-
-	//	PED::SET_BLOCKING_OF_NON_TEMPORARY_EVENTS(ped[i], TRUE);
-	//	PED::SET_PED_COMBAT_ATTRIBUTES(ped[i], 1, FALSE);
-	//	Vector3 pp = ENTITY::GET_ENTITY_COORDS(PLAYER::PLAYER_ID(), TRUE);
-	//	switch (currentBehaviour)
-	//	{
-	//	case 0:
-	//		rn = rand() % 12 + 2;
-	//		if (paramsLines[1].param == 0)
-	//			AI::TASK_USE_NEAREST_SCENARIO_TO_COORD(ped[i], current.x, current.y, current.z, 100.0, paramsLines[0].param);
-	//		else if (paramsLines[1].param == 1)
-	//			AI::TASK_START_SCENARIO_IN_PLACE(ped[i], scenarioTypes[rn], 0, true);
-	//		else
-	//			AI::TASK_START_SCENARIO_IN_PLACE(ped[i], scenarioTypes[paramsLines[1].param], 0, true);
-	//		break;
-	//	case 1:
-	//		AI::TASK_STAND_STILL(ped[i], paramsLines[0].param);
-	//		break;
-	//	case 2:
-	//		AI::TASK_USE_MOBILE_PHONE_TIMED(ped[i], paramsLines[0].param);
-	//		//AI::TASK_START_SCENARIO_AT_POSITION(ped[i], "PROP_HUMAN_SEAT_BENCH", current.x, current.y, current.z, 0, 100000, TRUE, TRUE);
-	//		break;
-	//	case 3:
-	//		AI::TASK_COWER(ped[i], paramsLines[0].param);
-	//		break;
-	//	case 4:
-	//		AI::TASK_WANDER_IN_AREA(ped[i], current.x, current.y, current.z, (float)paramsLines[2].param, (float)paramsLines[3].param, (float)paramsLines[4].param);
-	//		//AI::TASK_WANDER_IN_AREA(ped[i], current.x, current.y, current.z, 20.0f, 1.0f, 1.0f);
-	//		break;
-	//	case 5:
-	//		if (i > 0)
-	//			AI::TASK_CHAT_TO_PED(ped[i], ped[0], 16, 0.0, 0.0, 0.0, 0.0, 0.0);
-	//		else
-	//			AI::TASK_CHAT_TO_PED(ped[i], targetPed, 16, 0.0, 0.0, 0.0, 0.0, 0.0);
-	//		break;
-	//	case 6:
-	//		if (i>0)
-	//			AI::TASK_COMBAT_PED(ped[i], ped[0], 0, 16);
-	//		break;
-	//	case 7:
-	//		AI::TASK_STAY_IN_COVER(ped[i]);
-	//		break;
-	//	case 8: { 
-	//		if (paramsLines[5].param == -1) {
-	//			rnX = (float)(((rand() % 81) - 40) / 10.0);
-	//			rnY = (float)(((rand() % 81) - 40) / 10.0);
-	//		}
-	//		else {
-	//			rnX = (float)((rand() % (paramsLines[5].param * 2)) - paramsLines[5].param);
-	//			rnY = (float)((rand() % (paramsLines[5].param * 2)) - paramsLines[5].param);
-	//		}
-	//		
-	//		float speed_rnd = (float)(10 + rand() % 4) / 10;
-	//		addwPed(ped[i], coordsToVector(goFrom.x + rnX, goFrom.y + rnY, goFrom.z), coordsToVector(goTo.x + rnX, goTo.y + rnY, goTo.z), paramsLines[4].param, speed_rnd);
-	//		Object seq;
-	//		// waiting time proportional to distance
-	//		float atob = GAMEPLAY::GET_DISTANCE_BETWEEN_COORDS(goFrom.x, goFrom.y, goFrom.z, goTo.x, goTo.y, goTo.z, 1);
-	//		int max_time = (int)((atob / 2.5) * 1000);
-	//		max_time = 15000;
-
-	//		AI::OPEN_SEQUENCE_TASK(&seq);
-	//		AI::TASK_USE_MOBILE_PHONE_TIMED(0, rand() % max_time);
-	//		AI::TASK_GO_TO_COORD_ANY_MEANS(0, goFrom.x + rnX, goFrom.y + rnY, goFrom.z, speed_rnd, 0, 0, 786603, 0xbf800000);
-	//		AI::TASK_GO_TO_COORD_ANY_MEANS(0, goTo.x + rnX, goTo.y + rnY, goTo.z, speed_rnd, 0, 0, 786603, 0xbf800000);
-	//		AI::TASK_GO_TO_COORD_ANY_MEANS(0, goFrom.x + rnX, goFrom.y + rnY, goFrom.z, speed_rnd, 0, 0, 786603, 0xbf800000);
-	//		AI::TASK_GO_TO_COORD_ANY_MEANS(0, goTo.x + rnX, goTo.y + rnY, goTo.z, speed_rnd, 0, 0, 786603, 0xbf800000);
-	//		AI::TASK_GO_TO_COORD_ANY_MEANS(0, goFrom.x + rnX, goFrom.y + rnY, goFrom.z, speed_rnd, 0, 0, 786603, 0xbf800000);
-	//		AI::TASK_GO_TO_COORD_ANY_MEANS(0, goTo.x + rnX, goTo.y + rnY, goTo.z, speed_rnd, 0, 0, 786603, 0xbf800000);
-	//		AI::CLOSE_SEQUENCE_TASK(seq);
-	//		AI::TASK_PERFORM_SEQUENCE(ped[i], seq);
-	//		AI::CLEAR_SEQUENCE_TASK(&seq);
-
-	//		if (paramsLines[5].param != -1) {
-	//			rnX = (float)((rand() % (paramsLines[5].param * 2)) - paramsLines[5].param);
-	//			rnY = (float)((rand() % (paramsLines[5].param * 2)) - paramsLines[5].param);
-	//			speed_rnd = (float)(10 + rand() % 4) / 10;
-
-	//			int ped_specular = PED::CREATE_RANDOM_PED(goTo.x, goTo.y, goTo.z);
-	//			WAIT(100);
-	//			
-	//			ENTITY::SET_ENTITY_HEALTH(ped_specular, 0);
-	//			WAIT(100);
-	//			AI::CLEAR_PED_TASKS_IMMEDIATELY(ped_specular);
-	//			PED::RESURRECT_PED(ped_specular);
-	//			PED::REVIVE_INJURED_PED(ped_specular);
-
-	//			// in order to prevent them from falling in hell
-	//			ENTITY::SET_ENTITY_COLLISION(ped_specular, TRUE, TRUE);
-	//			PED::SET_PED_CAN_RAGDOLL(ped_specular, TRUE);
-
-	//			PED::SET_BLOCKING_OF_NON_TEMPORARY_EVENTS(ped_specular, TRUE);
-	//			PED::SET_PED_COMBAT_ATTRIBUTES(ped_specular, 1, FALSE);
-	//			addwPed(ped_specular, coordsToVector(goTo.x + rnX, goTo.y + rnY, goTo.z), coordsToVector(goFrom.x + rnX, goFrom.y + rnY, goFrom.z), paramsLines[4].param, speed_rnd);
-
-	//			Object seq2;
-	//			AI::OPEN_SEQUENCE_TASK(&seq2);
-	//			AI::TASK_USE_MOBILE_PHONE_TIMED(0, rand() % max_time);
-	//			AI::TASK_GO_TO_COORD_ANY_MEANS(0, goTo.x + rnX, goTo.y + rnY, goTo.z, speed_rnd, 0, 0, 786603, 0xbf800000);
-	//			AI::TASK_GO_TO_COORD_ANY_MEANS(0, goFrom.x + rnX, goFrom.y + rnY, goFrom.z, speed_rnd, 0, 0, 786603, 0xbf800000);
-	//			AI::TASK_GO_TO_COORD_ANY_MEANS(0, goTo.x + rnX, goTo.y + rnY, goTo.z, speed_rnd, 0, 0, 786603, 0xbf800000);
-	//			AI::TASK_GO_TO_COORD_ANY_MEANS(0, goFrom.x + rnX, goFrom.y + rnY, goFrom.z, speed_rnd, 0, 0, 786603, 0xbf800000);
-	//			AI::TASK_GO_TO_COORD_ANY_MEANS(0, goTo.x + rnX, goTo.y + rnY, goTo.z, speed_rnd, 0, 0, 786603, 0xbf800000);
-	//			AI::TASK_GO_TO_COORD_ANY_MEANS(0, goFrom.x + rnX, goFrom.y + rnY, goFrom.z, speed_rnd, 0, 0, 786603, 0xbf800000);
-	//			AI::CLOSE_SEQUENCE_TASK(seq2);
-	//			AI::TASK_PERFORM_SEQUENCE(ped_specular, seq2);
-	//			AI::CLEAR_SEQUENCE_TASK(&seq2);
-	//		}
-	//	}
-	//		break;
-	//	default:
-	//		break;
-	//	}
-
-	//}
 
 	for (auto& p : peds) {
 
@@ -1836,6 +1705,7 @@ void ScenarioCreator::spawn_peds(Vector3 pos, int num_ped) {
 				speed_rnd = (float)(10 + rand() % 4) / 10;
 
 				int ped_specular = PED::CREATE_RANDOM_PED(goTo.x, goTo.y, goTo.z);
+				overall_peds.push_back(ped_specular);
 				WAIT(100);
 
 				ENTITY::SET_ENTITY_HEALTH(ped_specular, 0);
@@ -1963,12 +1833,12 @@ void ScenarioCreator::file_menu()
 			case 1:
 				if (strcmp(fileName, "None") != 0)
 					// save file and reset nr_peds_left_ for next scenario
-					nr_peds_left_ = saveFile(files_path_,default_weather_);
+					nr_peds_left_ = saveFile(files_path_,default_weather_,overall_peds);
 				break;
 			case 2:
 				sprintf_s(fileName, "log_%d.txt", nFiles + 1);
 				// save file and reset nr_peds_left_ for next scenario
-				nr_peds_left_ = saveFile(files_path_, default_weather_);
+				nr_peds_left_ = saveFile(files_path_, default_weather_,overall_peds);
 				break;
 			case 3:
 				strcpy(logString, "");

@@ -6,6 +6,7 @@
 #include <string.h>
 #include <experimental/filesystem>
 #include <string>
+#include <tchar.h>
 
 #define _USE_MATH_DEFINES
 #include <math.h>
@@ -14,11 +15,11 @@
 
 namespace fs = std::experimental::filesystem;
 
-#define FPS 30
-#define DISPLAY_FLAG FALSE
+//#define DEBUG_MODE FALSE
 #define WANDERING_RADIUS 10.0
 #define MAX_PED_TO_CAM_DISTANCE 100.0
-#define DEMO FALSE
+//#define DEMO FALSE
+
 
 static char scenarioTypes[14][40]{
 	"NEAREST",
@@ -105,6 +106,8 @@ int GetEncoderClsid(const WCHAR* format, CLSID* pClsid)
 	return -1;  // Failure
 }
 
+
+
 inline std::vector<std::string> splitString(const std::string& s, char delimiter) {
 	std::vector<std::string> tokens;
 	std::string token;
@@ -149,7 +152,8 @@ inline void update_status_text()
 DatasetAnnotator::DatasetAnnotator(std::string config_file, int _is_night)
 	:int_params_(config_file),
 	float_params_(config_file),
-	string_params_(config_file)
+	string_params_(config_file),
+	bool_params_(config_file)
 {	
 	// register parameters
 	this->registerParams();
@@ -163,9 +167,17 @@ DatasetAnnotator::DatasetAnnotator(std::string config_file, int _is_night)
 	// store all the scnearios avalable in the scenario_names_map
 	readInScenarios();
 
-	this->max_samples = int_params_.getParam(this->max_samples_param_name_);
+	this->MAX_SAMPLES = int_params_.getParam(this->max_samples_param_name_);
 	this->default_weather_ = int_params_.getParam(this->default_weather_param_name_);
 	this->is_night = _is_night;
+	this->MAX_NR_WPEDS = int_params_.getParam(this->max_wpeds_param_name_);
+	this->SCREEN_HEIGHT = int_params_.getParam(this->screen_height_param_name_);
+	this->SCREEN_WIDTH = int_params_.getParam(this->screen_width_param_name_);
+	this->FPS = int_params_.getParam(this->fps_param_name_);
+	this->TIME_FACTOR = float_params_.getParam(this->timefactor_param_name_);
+	this->DEBUG_MODE = bool_params_.getParam(this->debug_param_name_);
+	this->RECORD_ALL_SEQS = bool_params_.getParam(this->all_seq_param_name_);
+
 
 	//srand((unsigned int)time(NULL)); //Initialises randomiser or sum' like that
 
@@ -210,11 +222,25 @@ DatasetAnnotator::DatasetAnnotator(std::string config_file, int _is_night)
 
 
 	this->captureFreq = (int)(FPS / TIME_FACTOR);
-	this->SHOW_JOINT_RECT = DISPLAY_FLAG;
+	this->SHOW_JOINT_RECT = DEBUG_MODE;
 
 	this->fov = 50;
 
 	FILE* log = fopen("setup.log", "w");
+	if (DEBUG_MODE) {
+		for (const auto& param : int_params_.getMap()) {
+			fprintf(log, "Integer parameter %s has value %d\n", param.first.c_str(), param.second);
+		}
+		for (const auto& param : string_params_.getMap()) {
+			fprintf(log, "Integer parameter %s has value %s\n", param.first.c_str(), param.second.c_str());
+		}
+		for (const auto& param : float_params_.getMap()) {
+			fprintf(log, "Integer parameter %s has value %f\n", param.first.c_str(), param.second);
+		}
+		for (const auto& param : bool_params_.getMap()) {
+			fprintf(log, "Integer parameter %s has value %d\n", param.first.c_str(), param.second);	 
+		}
+	}
 	if (this->output_path.empty()) {
 		fprintf(log, "Output path could not be read!\n");
 	}
@@ -227,15 +253,31 @@ DatasetAnnotator::DatasetAnnotator(std::string config_file, int _is_night)
 	else {
 		fprintf(log, "The path, where the scenarios to load can be found: %s\n", this->file_scenarios_path.c_str());
 	}
+
+
+	hWnd1 = ::FindWindow(NULL, _T("Launcher"));
+	if (hWnd1 == NULL) {
+		fprintf(log,"Error occurred while capturing the launcher window: %d\n", GetLastError());
+		//log_file << "Error occurred while capturing the window: " << GetLastError() << "\n";
+	}
+	hWnd = ::FindWindow(NULL, _T("Grand Theft Auto V"));
+	if (hWnd == NULL) {
+
+		fprintf(log, "Error occurred while capturing the regular window: %d\n", GetLastError());
+	}
+	hWnd2 = ::FindWindowEx(NULL, NULL, NULL, _T("Grand Theft Auto V"));
+	//(NULL, "Compatitibility Theft Auto V");
+	if (hWnd2 == NULL) {
+		fprintf(log, "Error occurred while capturing the window with the ex function: %d\n", GetLastError());
+	}
+
 	fclose(log);
 }
 
 DatasetAnnotator::~DatasetAnnotator()
 {
 	// todo: implement a destroyer
-	ReleaseDC(hWnd, hWindowDC);
-	DeleteDC(hCaptureDC);
-	DeleteObject(hCaptureBitmap);
+	
 	if (coords_file.is_open()) {
 		coords_file.close();
 	}
@@ -440,7 +482,7 @@ int DatasetAnnotator::update()
 				BOOL occluded = occlusion_ped || occlusion_object;
 
 
-				if (DISPLAY_FLAG) {
+				if (DEBUG_MODE) {
 					float x, y;
 					get_2D_from_3D(joint_coords, &x, &y);
 
@@ -478,8 +520,8 @@ int DatasetAnnotator::update()
 				float x, y;
 				get_2D_from_3D(joint_coords, &x, &y);
 				// FIXME add offset x and y here, if required, but check this first
-				x = x * SCREEN_WIDTH - offset_x;
-				y = y * SCREEN_HEIGHT - offset_y;
+				/*x = x * SCREEN_WIDTH + offset_x;
+				y = y * SCREEN_HEIGHT + offset_y;*/
 				coords_file << nsample;					  // frame number
 				coords_file << "," << peds[i];			  // pedestrian ID
 				coords_file << "," << n+1;				  // joint type
@@ -533,11 +575,19 @@ void DatasetAnnotator::registerParams()
 
 
 	// register float params
-
+	float_params_.registerParam(this->timefactor_param_name_);
 
 	// register int params
 	int_params_.registerParam(this->max_samples_param_name_);
 	int_params_.registerParam(this->default_weather_param_name_);
+	int_params_.registerParam(this->fps_param_name_);
+	int_params_.registerParam(this->screen_height_param_name_);
+	int_params_.registerParam(this->screen_width_param_name_);
+	int_params_.registerParam(this->max_wpeds_param_name_);
+
+	// register bool params
+	bool_params_.registerParam(this->debug_param_name_);
+	bool_params_.registerParam(this->all_seq_param_name_);
 }
 
 void DatasetAnnotator::get_2D_from_3D(Vector3 v, float *x2d, float *y2d) {
@@ -574,18 +624,70 @@ void DatasetAnnotator::get_2D_from_3D(Vector3 v, float *x2d, float *y2d) {
 	*y2d = (0.5f - (d.z * (f / d.y)) / SCREEN_HEIGHT);
 }
 
-//void DatasetAnnotator::save_frame() {
-//	if (!StretchBlt(hCaptureDC, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, hWindowDC, 0, 0, windowWidth, windowHeight, SRCCOPY | CAPTUREBLT)) {
-//		auto err = GetLastError();
-//		log_file << " StretchBlt returned the following error: " << err << "\n";
-//	}
-	//Gdiplus::Bitmap image(hCaptureBitmap, (HPALETTE)0);
-//	std::wstring ws;
-//	StringToWString(ws, current_output_path);
-//
-//	image.Save((ws + L"\\" + std::to_wstring(nsample) + L".png").c_str(), &pngClsid, NULL);
-//	log_file << " Status of saving images is  " << image.GetLastStatus() << "\n";
-//}
+void DatasetAnnotator::save_frame() {
+	log_file << "window handle before getDC is " << hWnd << "\n";
+	HDC hWindowDC = GetDC(hWnd);
+	log_file << "window handle after getDC is " << hWnd << "\n";
+	log_file << "GetDC returns " << hWindowDC << "\n";
+	HDC hCaptureDC = CreateCompatibleDC(hWindowDC);
+	log_file << "CreateCompatibleDC returns " << hCaptureDC << "\n";
+	HBITMAP hCaptureBitmap = CreateCompatibleBitmap(hWindowDC, SCREEN_WIDTH, SCREEN_HEIGHT);
+	log_file << "CreateCompatibleBitmap returns " << hCaptureBitmap << "\n";
+	auto sel_ret = SelectObject(hCaptureDC, hCaptureBitmap);
+	log_file << "The return value of selectObject is " << sel_ret << "\n";
+	auto has_suceeded = SetStretchBltMode(hCaptureDC, COLORONCOLOR);
+	log_file << "the previous color streching mode before setting COLORONCOLOR is " << has_suceeded << "\n";
+	if (!StretchBlt(hCaptureDC, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, hWindowDC, 0, 0, windowWidth, windowHeight, SRCCOPY | CAPTUREBLT)) {
+		auto err = GetLastError();
+		log_file << " StretchBlt returned the following error: " << err << "\n";
+	}
+	else {
+		Gdiplus::Bitmap image(hCaptureBitmap, NULL);
+		log_file << " Imagestatus after instantiation is  " << image.GetLastStatus() << "\n";
+		std::wstring ws(current_output_path.begin(), current_output_path.end());
+		//std::wstring wsTmp(s.begin(), s.end());
+		//ws = wsTmp;
+		//StringToWString(ws, current_output_path);
+
+		image.Save((ws + L"\\" + std::to_wstring(nsample) + L".png").c_str(), &pngClsid, NULL);
+		log_file << " Status of saving images is  " << image.GetLastStatus() << "\n";
+	}
+	DeleteObject(hCaptureBitmap);
+	DeleteDC(hCaptureDC);
+	ReleaseDC(hWnd, hWindowDC);
+	
+
+	HDC hScreenDC = CreateDC("DISPLAY", NULL, NULL, NULL);
+	// and a device context to put it in
+	HDC hMemoryDC = CreateCompatibleDC(hScreenDC);
+
+	int width = GetDeviceCaps(hScreenDC, HORZRES);
+	int height = GetDeviceCaps(hScreenDC, VERTRES);
+
+	// maybe worth checking these are positive values
+	HBITMAP hBitmap = CreateCompatibleBitmap(hScreenDC, width, height);
+
+	// get a new bitmap
+	HBITMAP hOldBitmap = (HBITMAP)SelectObject(hMemoryDC, hBitmap);
+
+	BitBlt(hMemoryDC, 0, 0, width, height, hScreenDC, 0, 0, SRCCOPY);
+	hBitmap = (HBITMAP)SelectObject(hMemoryDC, hOldBitmap);
+
+	Gdiplus::Bitmap image(hBitmap, (HPALETTE)0);
+	log_file << " Imagestatus after instantiation of screenshot trial is  " << image.GetLastStatus() << "\n";
+	std::wstring ws(current_output_path.begin(), current_output_path.end());
+	//std::wstring wsTmp(s.begin(), s.end());
+	//ws = wsTmp;
+	//StringToWString(ws, current_output_path);
+
+	image.Save((ws + L"\\screenshot_" + std::to_wstring(nsample) + L".png").c_str(), &pngClsid, NULL);
+	log_file << " Status of saving images is  " << image.GetLastStatus() << "\n";
+
+	// clean up
+	DeleteDC(hMemoryDC);
+	DeleteDC(hScreenDC);
+	
+}
 
 void DatasetAnnotator::setCameraMoving(Vector3 A, Vector3 B, Vector3 C, int fov) {
 	
@@ -785,17 +887,13 @@ void DatasetAnnotator::loadScenario()
 	// teleport far away in order to load game scenarios
 	ENTITY::SET_ENTITY_COORDS_NO_OFFSET(e, vTP1.x, vTP1.y, vTP1.z, 0, 0, 1);
 	lockCam(vTP1, vTP1_rot);
-	if (DEMO)
-		WAIT(3000);
-	else
-		WAIT(10000);
+
+	WAIT(10000);
 
 	ENTITY::SET_ENTITY_COORDS_NO_OFFSET(e, vTP2.x, vTP2.y, vTP2.z, 0, 0, 1);
 	lockCam(vTP2, vTP2_rot);
-	if (DEMO)
-		WAIT(3000);
-	else
-		WAIT(10000);
+
+	WAIT(10000);
 
 	set_status_text("Teleported cam!", 1000, true);
 
@@ -903,28 +1001,47 @@ void DatasetAnnotator::loadScenario()
 	//this->n_peds = 20;
 
 	// seconds are proportional to number of peds
-	if (DEMO)
-		this->secondsBeforeSaveImages = 10;
-	else
-		this->secondsBeforeSaveImages = 20;
+	this->secondsBeforeSaveImages = 20;
 
 	lastRecordingTime = std::clock() + (clock_t)((float)(secondsBeforeSaveImages * CLOCKS_PER_SEC));
 
 	//Screen capture buffer
+	GRAPHICS::GET_SCREEN_RESOLUTION(&windowHeight,&windowWidth);
+	log_file << "Widowheight non active is " << windowHeight << "; Windowwidth non active is " << windowWidth << "\n";
+
 	GRAPHICS::_GET_SCREEN_ACTIVE_RESOLUTION(&windowWidth, &windowHeight);
+	/*windowWidth = SCREEN_WIDTH;
+	windowHeight = SCREEN_HEIGHT;*/
 	log_file << "Widowheight is " << windowHeight << "; Windowwidth is " << windowWidth <<"\n";
-	hWnd = ::FindWindow(NULL, "Compatitibility Theft Auto V");
+
+	hWnd1 = ::FindWindow(NULL, _T("Launcher"));
+	if (hWnd1 == NULL) {
+		log_file << "Error occurred while capturing the launcher window: " << GetLastError() << "\n";
+	}
+	else {
+		hChild1 = GetWindow(hWnd1, 6);
+		log_file << "Chilf of hWnd1 is " << hChild1 << "\n";
+	}
+	hWnd = ::FindWindow(NULL, _T("Grand Theft Auto V"));
+	if (hWnd == NULL) {
+		log_file << "Error occurred while capturing the window: " << GetLastError() << "\n";
+	}
+	hWnd2 = ::FindWindowEx(NULL,NULL, NULL , _T("Grand Theft Auto V"));
+	//(NULL, "Compatitibility Theft Auto V");
+	if (hWnd2 == NULL) {
+		log_file << "Error occurred while capturing the window with FindWindowEx: " << GetLastError() << "\n";
+	}
+	else {
+		hChild2 = GetWindow(hWnd2, 6);
+		log_file << "Chilf of hWnd2 is " << hChild2 << "\n";
+
+
+
+
+	}
 	log_file << "FindWindow returns " << hWnd << "\n";
-	hWindowDC = GetDC(hWnd);
-	log_file << "GetDC returns " << hWindowDC << "\n";
-	hCaptureDC = CreateCompatibleDC(hWindowDC);
-	log_file << "CreateCompatibleDC returns " << hCaptureDC << "\n";
-	hCaptureBitmap = CreateCompatibleBitmap(hWindowDC, SCREEN_WIDTH, SCREEN_HEIGHT);
-	log_file << "CreateCompatibleBitmap returns " << hCaptureBitmap << "\n";
-	auto sel_ret = SelectObject(hCaptureDC, hCaptureBitmap);
-	log_file << "The return value of selectObject is " << sel_ret << "\n";
-	auto has_suceeded = SetStretchBltMode(hCaptureDC, COLORONCOLOR);
-	log_file << "the previous color streching mode before setting COLORONCOLOR is " << has_suceeded << "\n";
+	log_file << "FindWindowEx returns " << hWnd2 << "\n";
+	log_file << " FindWindow for Launcher returns " << hWnd1 << "\n";
 
 	// used to decide how often save the sample
 	recordingPeriod = 1.0f / captureFreq;
@@ -939,13 +1056,52 @@ void DatasetAnnotator::loadScenario()
 	
 	GdiplusStartup(&gdiplusToken, &gdiplusStartupInput, NULL);
 	GetEncoderClsid(L"image/bmp", &bmpClsid);
-	GetEncoderClsid(L"image/tiff", &pngClsid);
+	GetEncoderClsid(L"image/png", &pngClsid);
+
+	for (std::size_t i = 0; i < 7; i++) {
+		hChild = GetWindow(hWnd1, i);
+		log_file << "Child of hWnd is " << hChild << " for parameter " << i << "\n";
+
+		if (hChild) {
+			HDC hWindowDC = GetDC(hChild);
+			log_file << "window handle after getDC is " << hChild << "\n";
+			log_file << "GetDC returns " << hWindowDC << "\n";
+			HDC hCaptureDC = CreateCompatibleDC(hWindowDC);
+			log_file << "CreateCompatibleDC returns " << hCaptureDC << "\n";
+			HBITMAP hCaptureBitmap = CreateCompatibleBitmap(hWindowDC, SCREEN_WIDTH, SCREEN_HEIGHT);
+			log_file << "CreateCompatibleBitmap returns " << hCaptureBitmap << "\n";
+			auto sel_ret = SelectObject(hCaptureDC, hCaptureBitmap);
+			log_file << "The return value of selectObject is " << sel_ret << "\n";
+			auto has_suceeded = SetStretchBltMode(hCaptureDC, COLORONCOLOR);
+			log_file << "the previous color streching mode before setting COLORONCOLOR is " << has_suceeded << "\n";
+			if (!StretchBlt(hCaptureDC, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, hWindowDC, 0, 0, windowWidth, windowHeight, SRCCOPY | CAPTUREBLT)) {
+				auto err = GetLastError();
+				log_file << " StretchBlt returned the following error: " << err << "\n";
+			}
+			else {
+				Gdiplus::Bitmap image(hCaptureBitmap, (HPALETTE)0);
+				log_file << " Imagestatus after instantiation is  " << image.GetLastStatus() << "\n";
+				std::wstring ws(current_output_path.begin(), current_output_path.end());
+				//std::wstring wsTmp(s.begin(), s.end());
+				//ws = wsTmp;
+				//StringToWString(ws, current_output_path);
+
+				image.Save((ws + L"\\child_test" + std::to_wstring(i) + L".png").c_str(), &pngClsid, NULL);
+				log_file << " Status of saving images is  " << image.GetLastStatus() << "\n";
+			}
+			DeleteObject(hCaptureBitmap);
+			DeleteDC(hCaptureDC);
+			ReleaseDC(hChild, hWindowDC);
+		}
+		
+	}
 
 	set_status_text("End of LoadScenario Routine!", 1000, true);
 }
 
 void DatasetAnnotator::resetStates()
 {	
+	
 
 	set_status_text("Reset Function of Dataset Annotator was called!", 1000, true);
 	// reset the number of peds that are left
@@ -1001,10 +1157,8 @@ void DatasetAnnotator::spawn_peds_flow(Vector3 pos, Vector3 goFrom, Vector3 goTo
 		WAIT(100);
 	}
 	log_file << "Spawn peds flow: length of peds vector is " << peds.size() << "\n";
-	if (DEMO)
-		WAIT(500);
-	else
-		WAIT(2000);
+
+	WAIT(2000);
 
 	for (auto& p : peds) {
 		ENTITY::SET_ENTITY_HEALTH(p.first, 0);
@@ -1012,10 +1166,8 @@ void DatasetAnnotator::spawn_peds_flow(Vector3 pos, Vector3 goFrom, Vector3 goTo
 		ENTITY::SET_ENTITY_HEALTH(p.second, 0);
 		WAIT(50);
 	}
-	if (DEMO)
-		WAIT(500);
-	else
-		WAIT(2000);
+
+	WAIT(2000);
 		
 	for (auto& p : peds) {
 		// main ped 
@@ -1042,10 +1194,8 @@ void DatasetAnnotator::spawn_peds_flow(Vector3 pos, Vector3 goFrom, Vector3 goTo
 
 
 		
-	if (DEMO)
-		WAIT(500);
-	else
-		WAIT(2000);
+
+	WAIT(2000);
 
 	// resurrecting all pedestrians and assigning them a task
 	for (auto& p : peds) {
@@ -1135,10 +1285,8 @@ void DatasetAnnotator::spawn_peds(Vector3 pos, Vector3 goFrom, Vector3 goTo, int
 	//	WAIT(50);
 	//}
 
-	if (DEMO)
-		WAIT(500);
-	else
-		WAIT(2000);
+
+	WAIT(2000);
 
 	for (auto& p : peds) {
 		ENTITY::SET_ENTITY_HEALTH(p, 0);
@@ -1160,10 +1308,8 @@ void DatasetAnnotator::spawn_peds(Vector3 pos, Vector3 goFrom, Vector3 goTo, int
 	// fixme make this more realistic, not only one pedestrian should be talked to or fought
 	const auto targetPed = actual_npeds > 1 ? *std::next(peds.begin()) : peds.front();
 
-	if (DEMO)
-		WAIT(500);
-	else
-		WAIT(2000);
+
+	WAIT(2000);
 
 	// resurrecting all pedestrians and assigning them a task
 	for (auto& p : peds) {

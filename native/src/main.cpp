@@ -65,6 +65,8 @@ static bool hooked = false;
 
 // added in order to be able to tell, if currently recording or not 
 static bool recording = false;
+static bool load_new = false;
+static bool reset = false;
 
 
 //-------------------------
@@ -124,6 +126,7 @@ inline void exportStencilToBitmap(void** buf, std::size_t size, const std::strin
 	const auto window_width = annotator->getWindowWidth();
 	const auto window_height = annotator->getWindowHeight();
 	
+
 	std::wstring ws;
 	StringToWString(ws, output_path);
 
@@ -134,7 +137,7 @@ inline void exportStencilToBitmap(void** buf, std::size_t size, const std::strin
 		
 
 		int res_x, res_y;
-		GRAPHICS::GET_SCREEN_RESOLUTION(&res_x,&res_y);
+		GRAPHICS::_GET_SCREEN_ACTIVE_RESOLUTION(&res_x,&res_y);
 
 		if (size == res_y * res_x) {
 			fprintf(log, "WARNING: window height and width are not equal to number of elements in semantic mask due to Screen Resolution! Saving downsampled mask.\n");
@@ -251,21 +254,24 @@ inline void saveBuffersAndAnnotations(const int frame_nr)
 
 	std::string out = annotator->getOutputPath();
 	// auto f = fopen((out + "\\" + depth_path).c_str(), "w");
-	void* buf;
+	void* stenc_buf;
 	/*int size = export_get_depth_buffer(&buf);
 	fwrite(buf, 1, size, f);
 	fclose(f)*/;
 	/*f = fopen((out + "\\" + stenc_path).c_str(), "w");*/
-	int size = export_get_stencil_buffer(&buf);
-	exportStencilToBitmap(&buf,size,out + "\\" + sem_string);
+	int size = export_get_stencil_buffer(&stenc_buf);
+	exportStencilToBitmap(&stenc_buf,size,out + "\\" + sem_string);
 	/*fwrite(buf, 1, size, f);
 	fclose(f);*/
+	void* buf;
 	auto f = fopen((out + "\\" + col_path).c_str(), "w");
 	size = export_get_color_buffer(&buf);
 	// FIXME debug this function in order not to be dependend of postprocessing
 	//exportPNG(&buf,size,out + "\\" + col_path);
 	fwrite(buf, 1, size, f);
 	fclose(f);
+	buf = nullptr;
+	stenc_buf = nullptr;
 }
 
 // This is a template function for hooks for arbitrary devices, i.e. arbitrary hook functions
@@ -369,7 +375,7 @@ void clear_render_target_view_hook(ID3D11DeviceContext* self, ID3D11RenderTarget
 		/*FILE* f = fopen("GTANativePlugin.log", "a");
 		fprintf(f, "Render-Target-Hook: desc.Width is %d and desc.Height is %d\n", desc.Width, desc.Height);
 		fclose(f);*/
-		if (desc.Format == DXGI_FORMAT_B8G8R8A8_UNORM && desc.Width >= 1900 && desc.Height >= 1000) {
+		if (desc.Format == DXGI_FORMAT_B8G8R8A8_UNORM && desc.Width >= 1000 && desc.Height >= 1000) {
 			lastRtv = curRTV;
 		}
 	}
@@ -394,7 +400,7 @@ void clear_depth_stencil_view_hook(ID3D11DeviceContext* self, ID3D11DepthStencil
 		/*FILE* f = fopen("GTANativePlugin.log", "a");
 		fprintf(f, "Stencil-Hook: desc.Width is %d and desc.Height is %d\n", desc.Width, desc.Height);
 		fclose(f);*/
-		if (lastDsv == nullptr && desc.Format == DXGI_FORMAT_R32G8X24_TYPELESS && desc.Width >= 1900 && desc.Height >= 1000) {
+		if (lastDsv == nullptr && desc.Format == DXGI_FORMAT_R32G8X24_TYPELESS && desc.Width >= 1000 && desc.Height >= 1000) {
 			lastDsv = curDSV;
 			ExtractDepthBuffer(dev.Get(), self, res.Get());
 			last_capture_depth = system_clock::now();
@@ -468,6 +474,9 @@ void presentCallback(void* chain)
 		if (frame_nr >= annotator->getMaxFrames()) {
 			// stop recording
 			recording = false;
+			if (annotator->recordAllSeqs()) {
+				reset=true;
+			}
 			// fixme add info message here
 		}
 	}
@@ -478,23 +487,51 @@ void presentCallback(void* chain)
 }
 
 void reactionOnKeyboard() {
-	
-	while (true) {
-		//annotator->drawText("ScriptMain called!!!");
-		if (IsKeyJustUp(VK_F3) && !recording) {
-			annotator->drawText("Loading Scenario!");
-			annotator->loadScenario();
-			Sleep(100);
-			recording = true;
-			//annotator->drawText("Start recording!");
-		}else if ((IsKeyJustUp(VK_F2) || IsKeyJustUp(VK_ESCAPE)) && recording) {
-			recording = false;
-			annotator->drawText("Finish recording!");
-			annotator->resetStates();
-			Sleep(100);
+
+	if (annotator->recordAllSeqs()) {
+		while (true) {
+			//annotator->drawText("ScriptMain called!!!");
+			if (IsKeyJustUp(VK_F3) || load_new){
+				//annotator->drawText("Loading Scenario!");
+				load_new = false;
+				annotator->loadScenario();
+				Sleep(100);
+				recording = true;
+				//annotator->drawText("Start recording!");
+			}
+			else if (reset) {
+				recording = false;
+				reset = false;
+				annotator->drawText("Finish recording!");
+				annotator->resetStates();
+				WAIT(5000);
+				load_new = true;
+				Sleep(100);
+			}
+			WAIT(0);
 		}
-		WAIT(0);
 	}
+	else {
+		while (true) {
+			//annotator->drawText("ScriptMain called!!!");
+			if (IsKeyJustUp(VK_F3) && !recording) {
+				annotator->drawText("Loading Scenario!");
+				annotator->loadScenario();
+				Sleep(100);
+				recording = true;
+				//annotator->drawText("Start recording!");
+			}
+			else if ((IsKeyJustUp(VK_F2) || IsKeyJustUp(VK_ESCAPE)) && recording) {
+				recording = false;
+				annotator->drawText("Finish recording!");
+				annotator->resetStates();
+				Sleep(100);
+			}
+			WAIT(0);
+		}
+	}
+	
+	
 }
 
 void scriptMain() {

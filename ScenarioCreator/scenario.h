@@ -137,6 +137,8 @@ private:
 	int max_nr_peds_per_spawn;
 	int nr_peds_left_;
 
+	std::vector<Ped> overall_peds;
+
 
 	HWND hWnd;
 	HDC hWindowDC;

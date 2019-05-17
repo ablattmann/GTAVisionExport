@@ -21,16 +21,15 @@
 
 #pragma comment (lib,"Gdiplus.lib")
 
-constexpr int SCREEN_WIDTH = 1920;
-constexpr int SCREEN_HEIGHT = 1080;
-constexpr float TIME_FACTOR = 12.0;
+//constexpr int SCREEN_WIDTH = 1920;
+//constexpr int SCREEN_HEIGHT = 1080;
+//constexpr float TIME_FACTOR = 12.0;
 // set FPS to one in order to have signifikant changings during recorded frames
-constexpr int FPS = 30;
+//constexpr int FPS = 30;
 
 constexpr int max_number_of_peds = 1024;					// size of the pedestrians array
 constexpr int number_of_joints = 21;							// size of the joint_ID subset
-constexpr float JOINT_DELTA = 0;
-constexpr int max_wpeds = 512;
+//constexpr int max_wpeds = 512;
 
 typedef struct wPed {
 	Ped ped;
@@ -46,6 +45,10 @@ class Parameters {
 public:
 	Parameters(const std::string& config_file) :config_file_(config_file) {};
 	Parameters() = default;
+
+	std::map<std::string, ValueType> getMap() const {
+		return this->parameters_;
+	};
 
 	void registerParam(const std::string& key) {
 
@@ -104,6 +107,17 @@ private:
 		return value;
 	}
 
+	// needed for bools
+	template<>
+	bool convertKey<bool>(const std::string& key) const {
+		std::stringstream converter(key);
+		bool value;
+		converter >> std::boolalpha >> value;
+		return value;
+	}
+
+
+
 	
 };
 
@@ -116,13 +130,14 @@ public:
 	void drawText(const std::string& text) const;
 	void updateStatusText() const;
 	std::string getOutputPath() const { return this->current_output_path; }
-	int getMaxFrames() const { return this->max_samples; }
+	int getMaxFrames() const { return this->MAX_SAMPLES; }
 	void loadScenario();
 	void resetStates();
 	CLSID getCLSID() const { return this->bmpClsid; }
 	CLSID getCLSIDPNG() const { return this->pngClsid; }
 	int getWindowWidth() const{ return this->windowWidth; }
 	int getWindowHeight() const{ return this->windowHeight; }
+	bool recordAllSeqs() const { return this->RECORD_ALL_SEQS; }
 
 	~DatasetAnnotator();
 
@@ -130,6 +145,7 @@ private:
 	Parameters<int> int_params_;
 	Parameters<float> float_params_;
 	Parameters<std::string > string_params_;
+	Parameters<bool> bool_params_;
 	std::string output_path;
 	std::string current_output_path;
 	int default_weather_;
@@ -148,19 +164,19 @@ private:
 	bool SHOW_JOINT_RECT;							// bool used to switch the rectangle drawing around the joint
 	Ped ped_spawned[max_number_of_peds];
 	int n_peds;
-	int max_samples;
 	std::vector<const char*> bad_scenarios; // 36
 	int ped_with_cam;
 	std::string file_scenarios_path;
-	//wPed wPeds[max_wpeds];
-	//wPed wPeds_scenario[max_wpeds];
-	//int nwPeds = 0;
-	//int nwPeds_scenario = 0;
+	
 	std::vector<Ped> overall_peds = {};
 	int moving;
 	Vector3 A, B, C;
 	float offset_x = 0.0f;
 	float offset_y = 0.0f;
+
+	int SCREEN_HEIGHT, SCREEN_WIDTH, FPS, MAX_NR_WPEDS,MAX_SAMPLES;
+	float TIME_FACTOR;
+	bool DEBUG_MODE, RECORD_ALL_SEQS;
 
 	int windowWidth;
 	int windowHeight;
@@ -174,10 +190,10 @@ private:
 
 	int n_peds_left = max_number_of_peds;
 
-	HWND hWnd;
-	HDC hWindowDC;
+	HWND hWnd,hWnd1,hWnd2,hChild,hChild1,hChild2;
+	/*HDC hWindowDC;
 	HDC hCaptureDC;
-	HBITMAP hCaptureBitmap;
+	HBITMAP hCaptureBitmap;*/
 
 	float recordingPeriod;
 	std::clock_t lastRecordingTime;
@@ -189,31 +205,34 @@ private:
 	ULONG_PTR gdiplusToken;
 
 	void registerParams();
-	void get_2D_from_3D(Vector3 v, float *x, float *y);
-/*	void save_frame();		*/																// function used to capture frames internally, then private
+	void get_2D_from_3D(Vector3 v, float *x, float *y);														// function used to capture frames internally, then private
 	void setCameraFixed(Vector3 coords, Vector3 rot, float cam_z, int fov);
-	void setCameraMoving(Vector3 A, Vector3 B, Vector3 C, int fov);							// function used to set the camera stuff
-/*	void spawnPed(Vector3 spawnAreaCenter, int numPed);*/										// function used to spawn pedestrians at the beginning of the scenario
+	void setCameraMoving(Vector3 A, Vector3 B, Vector3 C, int fov);							// function used to set the camera stuff										// function used to spawn pedestrians at the beginning of the scenario
 	Vector3 teleportPlayer(Vector3 pos);													// function used to teleport the player to a random position returned by the function
-	//void addwPed(Ped p, Vector3 from, Vector3 to, int stop, float spd);
 	void spawn_peds_flow(Vector3 pos, Vector3 goFrom, Vector3 goTo, int npeds, int ngroup, int task_time, int type, int radius, 
 		int min_lenght, int time_between_walks, int spawning_radius, float speed);
 	void spawn_peds(Vector3 pos, Vector3 goFrom, Vector3 goTo, int npeds, int ngroup, int currentBehaviour,
 		int task_time, int type, int radius, int min_lenght, int time_between_walks, int spawning_radius, float speed);
-	//void walking_peds();
 	int myreadLine(FILE *f, Vector3 *pos, int *nPeds, int *ngroup, int *currentBehaviour, float *speed, Vector3 *goFrom, Vector3 *goTo, int *task_time,
 		int *type, int *radius, int *min_lenght, int *time_between_walks, int *spawning_radius);
 	void readInScenarios();
-	//void addwPed_scenario(Ped p);
 	void addPed(const Ped ped);
 	Cam lockCam(Vector3 pos, Vector3 rot);
 	Object createNewSeq();
+	void save_frame();
 
 	// parameter names
-	const std::string output_file_param_name_ = "output_file";
-	const std::string scenario_file_param_name_ = "scenario_file";
-	const std::string max_samples_param_name_ = "max_nr_samples";
-	const std::string default_weather_param_name_ = "default_weather_name";
+	const ParameterString output_file_param_name_ = "output_file";
+	const ParameterString scenario_file_param_name_ = "scenario_file";
+	const ParameterString max_samples_param_name_ = "max_nr_samples";
+	const ParameterString default_weather_param_name_ = "default_weather_name";
+	const ParameterString screen_width_param_name_ = "screen_width";
+	const ParameterString screen_height_param_name_ = "screen_height";
+	const ParameterString timefactor_param_name_ = "time_factor";
+	const ParameterString fps_param_name_ = "frames_per_seq";
+	const ParameterString max_wpeds_param_name_ = "max_nr_walking_peds";
+	const ParameterString debug_param_name_ = "debug_mode";
+	const ParameterString all_seq_param_name_ = "record_all_seqs";
 };
 
 int GetEncoderClsid(const WCHAR* format, CLSID* pClsid);
