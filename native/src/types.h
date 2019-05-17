@@ -35,8 +35,6 @@ typedef int ColourIndex;
 typedef int Sphere;
 typedef int ScrHandle;
 
-using ParameterString = std::string;
-
 #pragma pack(push, 1)
 typedef struct
 {

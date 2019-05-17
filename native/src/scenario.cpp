@@ -254,23 +254,6 @@ DatasetAnnotator::DatasetAnnotator(std::string config_file, int _is_night)
 		fprintf(log, "The path, where the scenarios to load can be found: %s\n", this->file_scenarios_path.c_str());
 	}
 
-
-	hWnd1 = ::FindWindow(NULL, _T("Launcher"));
-	if (hWnd1 == NULL) {
-		fprintf(log,"Error occurred while capturing the launcher window: %d\n", GetLastError());
-		//log_file << "Error occurred while capturing the window: " << GetLastError() << "\n";
-	}
-	hWnd = ::FindWindow(NULL, _T("Grand Theft Auto V"));
-	if (hWnd == NULL) {
-
-		fprintf(log, "Error occurred while capturing the regular window: %d\n", GetLastError());
-	}
-	hWnd2 = ::FindWindowEx(NULL, NULL, NULL, _T("Grand Theft Auto V"));
-	//(NULL, "Compatitibility Theft Auto V");
-	if (hWnd2 == NULL) {
-		fprintf(log, "Error occurred while capturing the window with the ex function: %d\n", GetLastError());
-	}
-
 	fclose(log);
 }
 
@@ -545,7 +528,7 @@ int DatasetAnnotator::update()
 	}
 	// increase nsample by one to make sure that patches are aligned
 	nsample++;
-	//save_frame();
+	save_frame();
 	//if (nsample == max_samples) {
 	//	for (int i = 0; i < nwPeds; i++) {
 	//		PED::DELETE_PED(&wPeds[i].ped);
@@ -624,37 +607,47 @@ void DatasetAnnotator::get_2D_from_3D(Vector3 v, float *x2d, float *y2d) {
 	*y2d = (0.5f - (d.z * (f / d.y)) / SCREEN_HEIGHT);
 }
 
-void DatasetAnnotator::save_frame() {
-	log_file << "window handle before getDC is " << hWnd << "\n";
-	HDC hWindowDC = GetDC(hWnd);
-	log_file << "window handle after getDC is " << hWnd << "\n";
-	log_file << "GetDC returns " << hWindowDC << "\n";
-	HDC hCaptureDC = CreateCompatibleDC(hWindowDC);
-	log_file << "CreateCompatibleDC returns " << hCaptureDC << "\n";
-	HBITMAP hCaptureBitmap = CreateCompatibleBitmap(hWindowDC, SCREEN_WIDTH, SCREEN_HEIGHT);
-	log_file << "CreateCompatibleBitmap returns " << hCaptureBitmap << "\n";
-	auto sel_ret = SelectObject(hCaptureDC, hCaptureBitmap);
-	log_file << "The return value of selectObject is " << sel_ret << "\n";
-	auto has_suceeded = SetStretchBltMode(hCaptureDC, COLORONCOLOR);
-	log_file << "the previous color streching mode before setting COLORONCOLOR is " << has_suceeded << "\n";
-	if (!StretchBlt(hCaptureDC, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, hWindowDC, 0, 0, windowWidth, windowHeight, SRCCOPY | CAPTUREBLT)) {
-		auto err = GetLastError();
-		log_file << " StretchBlt returned the following error: " << err << "\n";
-	}
-	else {
-		Gdiplus::Bitmap image(hCaptureBitmap, NULL);
-		log_file << " Imagestatus after instantiation is  " << image.GetLastStatus() << "\n";
-		std::wstring ws(current_output_path.begin(), current_output_path.end());
-		//std::wstring wsTmp(s.begin(), s.end());
-		//ws = wsTmp;
-		//StringToWString(ws, current_output_path);
+//void DatasetAnnotator::save_frame() {
+//	StretchBlt(hCaptureDC, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, hWindowDC, 0, 0, windowWidth, windowHeight, SRCCOPY | CAPTUREBLT);
+//	Gdiplus::Bitmap image(hCaptureBitmap, (HPALETTE)0);
+//	//std::wstring ws;
+//	/*StringToWString(ws, output_path);*/
+//	std::wstring ws(current_output_path.begin(), current_output_path.end());
+//
+//	image.Save((ws + L"\\" + std::to_wstring(nsample) + L".jpeg").c_str(), &pngClsid, NULL);
+//}
 
-		image.Save((ws + L"\\" + std::to_wstring(nsample) + L".png").c_str(), &pngClsid, NULL);
-		log_file << " Status of saving images is  " << image.GetLastStatus() << "\n";
-	}
-	DeleteObject(hCaptureBitmap);
-	DeleteDC(hCaptureDC);
-	ReleaseDC(hWnd, hWindowDC);
+void DatasetAnnotator::save_frame() {
+	//log_file << "window handle before getDC is " << hWnd << "\n";
+	//HDC hWindowDC = GetDC(hWnd);
+	//log_file << "window handle after getDC is " << hWnd << "\n";
+	//log_file << "GetDC returns " << hWindowDC << "\n";
+	//HDC hCaptureDC = CreateCompatibleDC(hWindowDC);
+	//log_file << "CreateCompatibleDC returns " << hCaptureDC << "\n";
+	//HBITMAP hCaptureBitmap = CreateCompatibleBitmap(hWindowDC, SCREEN_WIDTH, SCREEN_HEIGHT);
+	//log_file << "CreateCompatibleBitmap returns " << hCaptureBitmap << "\n";
+	//auto sel_ret = SelectObject(hCaptureDC, hCaptureBitmap);
+	//log_file << "The return value of selectObject is " << sel_ret << "\n";
+	//auto has_suceeded = SetStretchBltMode(hCaptureDC, COLORONCOLOR);
+	//log_file << "the previous color streching mode before setting COLORONCOLOR is " << has_suceeded << "\n";
+	//if (!StretchBlt(hCaptureDC, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, hWindowDC, 0, 0, windowWidth, windowHeight, SRCCOPY | CAPTUREBLT)) {
+	//	auto err = GetLastError();
+	//	log_file << " StretchBlt returned the following error: " << err << "\n";
+	//}
+	//else {
+	//	Gdiplus::Bitmap image(hCaptureBitmap, NULL);
+	//	log_file << " Imagestatus after instantiation is  " << image.GetLastStatus() << "\n";
+	//	std::wstring ws(current_output_path.begin(), current_output_path.end());
+	//	//std::wstring wsTmp(s.begin(), s.end());
+	//	//ws = wsTmp;
+	//	//StringToWString(ws, current_output_path);
+
+	//	image.Save((ws + L"\\" + std::to_wstring(nsample) + L".png").c_str(), &pngClsid, NULL);
+	//	log_file << " Status of saving images is  " << image.GetLastStatus() << "\n";
+	//}
+	//DeleteObject(hCaptureBitmap);
+	//DeleteDC(hCaptureDC);
+	//ReleaseDC(hWnd, hWindowDC);
 	
 
 	HDC hScreenDC = CreateDC("DISPLAY", NULL, NULL, NULL);
@@ -680,10 +673,11 @@ void DatasetAnnotator::save_frame() {
 	//ws = wsTmp;
 	//StringToWString(ws, current_output_path);
 
-	image.Save((ws + L"\\screenshot_" + std::to_wstring(nsample) + L".png").c_str(), &pngClsid, NULL);
+	image.Save((ws + L"\\frame_" + std::to_wstring(nsample) + L".png").c_str(), &pngClsid, NULL);
 	log_file << " Status of saving images is  " << image.GetLastStatus() << "\n";
 
 	// clean up
+	DeleteObject(hBitmap);
 	DeleteDC(hMemoryDC);
 	DeleteDC(hScreenDC);
 	
@@ -1014,34 +1008,41 @@ void DatasetAnnotator::loadScenario()
 	windowHeight = SCREEN_HEIGHT;*/
 	log_file << "Widowheight is " << windowHeight << "; Windowwidth is " << windowWidth <<"\n";
 
-	hWnd1 = ::FindWindow(NULL, _T("Launcher"));
-	if (hWnd1 == NULL) {
-		log_file << "Error occurred while capturing the launcher window: " << GetLastError() << "\n";
-	}
-	else {
-		hChild1 = GetWindow(hWnd1, 6);
-		log_file << "Chilf of hWnd1 is " << hChild1 << "\n";
-	}
-	hWnd = ::FindWindow(NULL, _T("Grand Theft Auto V"));
-	if (hWnd == NULL) {
-		log_file << "Error occurred while capturing the window: " << GetLastError() << "\n";
-	}
-	hWnd2 = ::FindWindowEx(NULL,NULL, NULL , _T("Grand Theft Auto V"));
-	//(NULL, "Compatitibility Theft Auto V");
-	if (hWnd2 == NULL) {
-		log_file << "Error occurred while capturing the window with FindWindowEx: " << GetLastError() << "\n";
-	}
-	else {
-		hChild2 = GetWindow(hWnd2, 6);
-		log_file << "Chilf of hWnd2 is " << hChild2 << "\n";
+	/*hWnd = ::FindWindow(NULL, "Compatitibility Theft Auto V");
+	hWindowDC = GetDC(hWnd);
+	hCaptureDC = CreateCompatibleDC(hWindowDC);
+	hCaptureBitmap = CreateCompatibleBitmap(hWindowDC, SCREEN_WIDTH, SCREEN_HEIGHT);
+	SelectObject(hCaptureDC, hCaptureBitmap);
+	SetStretchBltMode(hCaptureDC, COLORONCOLOR);*/
+
+	//hWnd1 = ::FindWindow(NULL, _T("Launcher"));
+	//if (hWnd1 == NULL) {
+	//	log_file << "Error occurred while capturing the launcher window: " << GetLastError() << "\n";
+	//}
+	//else {
+	//	hChild1 = GetWindow(hWnd1, 6);
+	//	log_file << "Chilf of hWnd1 is " << hChild1 << "\n";
+	//}
+	//hWnd = ::FindWindow(NULL, _T("Grand Theft Auto V"));
+	//if (hWnd == NULL) {
+	//	log_file << "Error occurred while capturing the window: " << GetLastError() << "\n";
+	//}
+	//hWnd2 = ::FindWindowEx(NULL,NULL, NULL , _T("Grand Theft Auto V"));
+	////(NULL, "Compatitibility Theft Auto V");
+	//if (hWnd2 == NULL) {
+	//	log_file << "Error occurred while capturing the window with FindWindowEx: " << GetLastError() << "\n";
+	//}
+	//else {
+	//	hChild2 = GetWindow(hWnd2, 6);
+	//	log_file << "Chilf of hWnd2 is " << hChild2 << "\n";
 
 
 
 
-	}
-	log_file << "FindWindow returns " << hWnd << "\n";
-	log_file << "FindWindowEx returns " << hWnd2 << "\n";
-	log_file << " FindWindow for Launcher returns " << hWnd1 << "\n";
+	//}
+	//log_file << "FindWindow returns " << hWnd << "\n";
+	//log_file << "FindWindowEx returns " << hWnd2 << "\n";
+	//log_file << " FindWindow for Launcher returns " << hWnd1 << "\n";
 
 	// used to decide how often save the sample
 	recordingPeriod = 1.0f / captureFreq;
@@ -1058,43 +1059,43 @@ void DatasetAnnotator::loadScenario()
 	GetEncoderClsid(L"image/bmp", &bmpClsid);
 	GetEncoderClsid(L"image/png", &pngClsid);
 
-	for (std::size_t i = 0; i < 7; i++) {
-		hChild = GetWindow(hWnd1, i);
-		log_file << "Child of hWnd is " << hChild << " for parameter " << i << "\n";
+	//for (std::size_t i = 0; i < 7; i++) {
+	//	hChild = GetWindow(hWnd1, i);
+	//	log_file << "Child of hWnd is " << hChild << " for parameter " << i << "\n";
 
-		if (hChild) {
-			HDC hWindowDC = GetDC(hChild);
-			log_file << "window handle after getDC is " << hChild << "\n";
-			log_file << "GetDC returns " << hWindowDC << "\n";
-			HDC hCaptureDC = CreateCompatibleDC(hWindowDC);
-			log_file << "CreateCompatibleDC returns " << hCaptureDC << "\n";
-			HBITMAP hCaptureBitmap = CreateCompatibleBitmap(hWindowDC, SCREEN_WIDTH, SCREEN_HEIGHT);
-			log_file << "CreateCompatibleBitmap returns " << hCaptureBitmap << "\n";
-			auto sel_ret = SelectObject(hCaptureDC, hCaptureBitmap);
-			log_file << "The return value of selectObject is " << sel_ret << "\n";
-			auto has_suceeded = SetStretchBltMode(hCaptureDC, COLORONCOLOR);
-			log_file << "the previous color streching mode before setting COLORONCOLOR is " << has_suceeded << "\n";
-			if (!StretchBlt(hCaptureDC, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, hWindowDC, 0, 0, windowWidth, windowHeight, SRCCOPY | CAPTUREBLT)) {
-				auto err = GetLastError();
-				log_file << " StretchBlt returned the following error: " << err << "\n";
-			}
-			else {
-				Gdiplus::Bitmap image(hCaptureBitmap, (HPALETTE)0);
-				log_file << " Imagestatus after instantiation is  " << image.GetLastStatus() << "\n";
-				std::wstring ws(current_output_path.begin(), current_output_path.end());
-				//std::wstring wsTmp(s.begin(), s.end());
-				//ws = wsTmp;
-				//StringToWString(ws, current_output_path);
+	//	if (hChild) {
+	//		HDC hWindowDC = GetDC(hChild);
+	//		log_file << "window handle after getDC is " << hChild << "\n";
+	//		log_file << "GetDC returns " << hWindowDC << "\n";
+	//		HDC hCaptureDC = CreateCompatibleDC(hWindowDC);
+	//		log_file << "CreateCompatibleDC returns " << hCaptureDC << "\n";
+	//		HBITMAP hCaptureBitmap = CreateCompatibleBitmap(hWindowDC, SCREEN_WIDTH, SCREEN_HEIGHT);
+	//		log_file << "CreateCompatibleBitmap returns " << hCaptureBitmap << "\n";
+	//		auto sel_ret = SelectObject(hCaptureDC, hCaptureBitmap);
+	//		log_file << "The return value of selectObject is " << sel_ret << "\n";
+	//		auto has_suceeded = SetStretchBltMode(hCaptureDC, COLORONCOLOR);
+	//		log_file << "the previous color streching mode before setting COLORONCOLOR is " << has_suceeded << "\n";
+	//		if (!StretchBlt(hCaptureDC, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, hWindowDC, 0, 0, windowWidth, windowHeight, SRCCOPY | CAPTUREBLT)) {
+	//			auto err = GetLastError();
+	//			log_file << " StretchBlt returned the following error: " << err << "\n";
+	//		}
+	//		else {
+	//			Gdiplus::Bitmap image(hCaptureBitmap, (HPALETTE)0);
+	//			log_file << " Imagestatus after instantiation is  " << image.GetLastStatus() << "\n";
+	//			std::wstring ws(current_output_path.begin(), current_output_path.end());
+	//			//std::wstring wsTmp(s.begin(), s.end());
+	//			//ws = wsTmp;
+	//			//StringToWString(ws, current_output_path);
 
-				image.Save((ws + L"\\child_test" + std::to_wstring(i) + L".png").c_str(), &pngClsid, NULL);
-				log_file << " Status of saving images is  " << image.GetLastStatus() << "\n";
-			}
-			DeleteObject(hCaptureBitmap);
-			DeleteDC(hCaptureDC);
-			ReleaseDC(hChild, hWindowDC);
-		}
-		
-	}
+	//			image.Save((ws + L"\\child_test" + std::to_wstring(i) + L".png").c_str(), &pngClsid, NULL);
+	//			log_file << " Status of saving images is  " << image.GetLastStatus() << "\n";
+	//		}
+	//		DeleteObject(hCaptureBitmap);
+	//		DeleteDC(hCaptureDC);
+	//		ReleaseDC(hChild, hWindowDC);
+	//	}
+	//	
+	//}
 
 	set_status_text("End of LoadScenario Routine!", 1000, true);
 }
@@ -1128,7 +1129,9 @@ void DatasetAnnotator::resetStates()
 	// Set the count for the sequence tasks to zero
 	seq_count_ = 0;
 
-	
+	/*DeleteObject(hCaptureBitmap);
+	DeleteDC(hCaptureDC);
+	ReleaseDC(hWnd, hWindowDC);*/
 	Gdiplus::GdiplusShutdown(gdiplusToken);
 
 }

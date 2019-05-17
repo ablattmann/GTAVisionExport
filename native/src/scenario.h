@@ -40,6 +40,8 @@ typedef struct wPed {
 	float speed;
 } wPed;
 
+using ParameterString = std::string;
+
 template<typename ValueType>
 class Parameters {
 public:
@@ -190,11 +192,11 @@ private:
 
 	int n_peds_left = max_number_of_peds;
 
-	HWND hWnd,hWnd1,hWnd2,hChild,hChild1,hChild2;
-	/*HDC hWindowDC;
+	/*HWND hWnd,hWnd1,hWnd2,hChild,hChild1,hChild2;
+	HDC hWindowDC;
 	HDC hCaptureDC;
-	HBITMAP hCaptureBitmap;*/
-
+	HBITMAP hCaptureBitmap;
+*/
 	float recordingPeriod;
 	std::clock_t lastRecordingTime;
 	int nsample;
