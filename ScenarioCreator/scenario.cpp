@@ -946,7 +946,9 @@ void ScenarioCreator::camera_menu()
 			}
 			else if (activeLineIndexCamera == 4)
 			{
-				camMoving = !camMoving;
+				set_status_text("Moving Camera disabled!");
+				/*camMoving = !camMoving;*/
+				camMoving = false;
 			}
 			else if (activeLineIndexCamera == 5)
 			{

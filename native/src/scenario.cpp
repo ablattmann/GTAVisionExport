@@ -7,6 +7,7 @@
 #include <experimental/filesystem>
 #include <string>
 #include <tchar.h>
+//#include <mutex>
 
 #define _USE_MATH_DEFINES
 #include <math.h>
@@ -57,6 +58,10 @@ static LPCSTR weather_types[13] = {
 std::string statusText;
 DWORD statusTextDrawTicksMax;
 bool statusTextGxtEntry;
+
+static std::ofstream load_log;
+
+
 
 float random_float(float min, float max) {
 	return min + static_cast <float> (rand()) / (static_cast <float> (RAND_MAX / (max - min)));
@@ -282,12 +287,26 @@ void DatasetAnnotator::readInScenarios() {
 void DatasetAnnotator::addPed(const Ped ped) {
 	n_peds_left--;
 	overall_peds.push_back(ped);
-	log_file << "Adding new ped; number of peds left is" << n_peds_left << "\n";
+	//log_file << "Adding new ped; number of peds left is" << n_peds_left << "\n";
 }
 
 int DatasetAnnotator::update()
 {
-	float delay = (static_cast<float>(std::clock() - lastRecordingTime)) / CLOCKS_PER_SEC;
+	//try {
+	//	/*if (!log_file.is_open()) {
+	//		log_file.open(current_output_path + "\\log.txt");
+	//	}*/
+	//}
+	//catch (const std::ios_base::failure& ex) {
+
+	//}
+	//
+	float delay = ((float)(std::clock() - lastRecordingTime)) / CLOCKS_PER_SEC;
+	if (delay >= recordingPeriod)
+		lastRecordingTime = std::clock();
+	else
+		return nsample;
+	/*float delay = (static_cast<float>(std::clock() - lastRecordingTime)) / CLOCKS_PER_SEC;
 	if (delay >= recordingPeriod) {
 		log_file << "Resetting last recording time; Delay is " << delay << "; recordingPeriod is " << recordingPeriod << "\n";
 		lastRecordingTime = std::clock();
@@ -296,7 +315,7 @@ int DatasetAnnotator::update()
 	else {
 		log_file << "Delay smaller than recordingPeriod! Returning nsample without doing anything; Delay is " << delay << "; recordingPeriod is " << recordingPeriod << "\n";
 		return -1;
-	}
+	}*/
 		
 	GAMEPLAY::SET_TIME_SCALE(1.0f / (float)TIME_FACTOR);
 
@@ -304,14 +323,18 @@ int DatasetAnnotator::update()
 
 	//ENTITY::SET_ENTITY_COORDS_NO_OFFSET(PLAYER::PLAYER_PED_ID(), cam_coords.x, cam_coords.y, cam_coords.z, 0, 0, 0);
 
-	Ped peds[max_number_of_peds];											// array of pedestrians
-	int number_of_peds = worldGetAllPeds(peds, max_number_of_peds);			// number of pedestrians taken
-	log_file << "The number of peds in update method is " << number_of_peds << "\n";
-	float C;																// coefficient used to adjust the size of rectangles drawn around the joints
 
+	
+	//Ped peds[max_number_of_peds];// array of pedestrians
+	std::vector<Ped> peds;
+	peds.reserve(max_number_of_peds);
+	int number_of_peds = worldGetAllPeds(&peds[0], max_number_of_peds);			// number of pedestrians taken
+	//log_file << "The number of peds in update method is " << number_of_peds << "\n";
+	float C;	
 
+	// continue here
 	for (int i = 0; i < number_of_peds; i++) {
-		if (!PED::IS_PED_A_PLAYER(peds[i]) && peds[i] != ped_with_cam) {
+		if (!PED::IS_PED_A_PLAYER(peds[i])/* && peds[i] != ped_with_cam*/) {
 			ENTITY::SET_ENTITY_COLLISION(peds[i], TRUE, TRUE);
 			ENTITY::SET_ENTITY_VISIBLE(peds[i], TRUE, FALSE);
 			ENTITY::SET_ENTITY_ALPHA(peds[i], 255, FALSE);
@@ -333,22 +356,24 @@ int DatasetAnnotator::update()
 			}
 			
 		}
-		else if (peds[i] == ped_with_cam) {
+		/*else if (peds[i] == ped_with_cam) {
 			ENTITY::SET_ENTITY_COLLISION(ped_with_cam, TRUE, TRUE);
 			ENTITY::SET_ENTITY_VISIBLE(ped_with_cam, FALSE, FALSE);
 			ENTITY::SET_ENTITY_ALPHA(ped_with_cam, 0, FALSE);
 			ENTITY::SET_ENTITY_CAN_BE_DAMAGED(ped_with_cam, FALSE);
-		}
+		}*/
 	}
 
+	//nsample++;
+	//return nsample;// coefficient used to adjust the size of rectangles drawn around the joints
 	
-	if (moving) {
-		this->cam_coords = CAM::GET_CAM_COORD(camera);
-		Vector3 ped_with_cam_rot = ENTITY::GET_ENTITY_ROTATION(this->ped_with_cam, 2);
-		CAM::SET_CAM_ROT(camera, ped_with_cam_rot.x, ped_with_cam_rot.y, ped_with_cam_rot.z, 2);
-		this->cam_rot = CAM::GET_CAM_ROT(camera, 2);
-		//this->cam_rot = ped_with_cam_rot;
-	}
+	//if (moving) {
+	//	this->cam_coords = CAM::GET_CAM_COORD(camera);
+	//	Vector3 ped_with_cam_rot = ENTITY::GET_ENTITY_ROTATION(this->ped_with_cam, 2);
+	//	CAM::SET_CAM_ROT(camera, ped_with_cam_rot.x, ped_with_cam_rot.y, ped_with_cam_rot.z, 2);
+	//	this->cam_rot = CAM::GET_CAM_ROT(camera, 2);
+	//	//this->cam_rot = ped_with_cam_rot;
+	//}
 
 	//this->cam_coords = CAM::GET_GAMEPLAY_CAM_COORD();
 	//this->cam_rot = CAM::GET_GAMEPLAY_CAM_ROT(2);
@@ -429,8 +454,8 @@ int DatasetAnnotator::update()
 				);
 				WORLDPROBE::_GET_RAYCAST_RESULT(ray_ped_occlusion, &occlusion_ped, &end_coords1, &surface_norm1, &entityHit1);
 
-				if (entityHit1 == ped_with_cam)
-					occlusion_ped = FALSE;
+				/*if (entityHit1 == ped_with_cam)
+					occlusion_ped = FALSE;*/
 
 
 				// ray #2: from joint to camera (without ignoring the pedestrian to whom the joint belongs and intersecting only pedestrian (8))
@@ -445,8 +470,8 @@ int DatasetAnnotator::update()
 				);
 				WORLDPROBE::_GET_RAYCAST_RESULT(ray_joint2cam, &occlusion_self, &endCoords2, &surfaceNormal2, &entityHit2);
 
-				if (entityHit2 == ped_with_cam)
-					occlusion_self = FALSE;
+				/*if (entityHit2 == ped_with_cam)
+					occlusion_self = FALSE;*/
 
 
 				// ray #3: from camera to joint (ignoring the pedestrian to whom the joint belongs and intersecting everything but peds (4 and 8))
@@ -503,8 +528,8 @@ int DatasetAnnotator::update()
 				float x, y;
 				get_2D_from_3D(joint_coords, &x, &y);
 				// FIXME add offset x and y here, if required, but check this first
-				/*x = x * SCREEN_WIDTH + offset_x;
-				y = y * SCREEN_HEIGHT + offset_y;*/
+				x = x * SCREEN_WIDTH;
+				y = y * SCREEN_HEIGHT;
 				coords_file << nsample;					  // frame number
 				coords_file << "," << peds[i];			  // pedestrian ID
 				coords_file << "," << n+1;				  // joint type
@@ -607,132 +632,132 @@ void DatasetAnnotator::get_2D_from_3D(Vector3 v, float *x2d, float *y2d) {
 	*y2d = (0.5f - (d.z * (f / d.y)) / SCREEN_HEIGHT);
 }
 
+void DatasetAnnotator::save_frame() {
+	StretchBlt(hCaptureDC, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, hWindowDC, 0, 0, windowWidth, windowHeight, SRCCOPY | CAPTUREBLT);
+	Gdiplus::Bitmap image(hCaptureBitmap, (HPALETTE)0);
+	//std::wstring ws;
+	/*StringToWString(ws, output_path);*/
+	std::wstring ws(current_output_path.begin(), current_output_path.end());
+
+	image.Save((ws + L"\\" + std::to_wstring(nsample) + L".jpeg").c_str(), &pngClsid, NULL);
+}
+
 //void DatasetAnnotator::save_frame() {
-//	StretchBlt(hCaptureDC, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, hWindowDC, 0, 0, windowWidth, windowHeight, SRCCOPY | CAPTUREBLT);
-//	Gdiplus::Bitmap image(hCaptureBitmap, (HPALETTE)0);
-//	//std::wstring ws;
-//	/*StringToWString(ws, output_path);*/
-//	std::wstring ws(current_output_path.begin(), current_output_path.end());
+//	//log_file << "window handle before getDC is " << hWnd << "\n";
+//	//HDC hWindowDC = GetDC(hWnd);
+//	//log_file << "window handle after getDC is " << hWnd << "\n";
+//	//log_file << "GetDC returns " << hWindowDC << "\n";
+//	//HDC hCaptureDC = CreateCompatibleDC(hWindowDC);
+//	//log_file << "CreateCompatibleDC returns " << hCaptureDC << "\n";
+//	//HBITMAP hCaptureBitmap = CreateCompatibleBitmap(hWindowDC, SCREEN_WIDTH, SCREEN_HEIGHT);
+//	//log_file << "CreateCompatibleBitmap returns " << hCaptureBitmap << "\n";
+//	//auto sel_ret = SelectObject(hCaptureDC, hCaptureBitmap);
+//	//log_file << "The return value of selectObject is " << sel_ret << "\n";
+//	//auto has_suceeded = SetStretchBltMode(hCaptureDC, COLORONCOLOR);
+//	//log_file << "the previous color streching mode before setting COLORONCOLOR is " << has_suceeded << "\n";
+//	//if (!StretchBlt(hCaptureDC, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, hWindowDC, 0, 0, windowWidth, windowHeight, SRCCOPY | CAPTUREBLT)) {
+//	//	auto err = GetLastError();
+//	//	log_file << " StretchBlt returned the following error: " << err << "\n";
+//	//}
+//	//else {
+//	//	Gdiplus::Bitmap image(hCaptureBitmap, NULL);
+//	//	log_file << " Imagestatus after instantiation is  " << image.GetLastStatus() << "\n";
+//	//	std::wstring ws(current_output_path.begin(), current_output_path.end());
+//	//	//std::wstring wsTmp(s.begin(), s.end());
+//	//	//ws = wsTmp;
+//	//	//StringToWString(ws, current_output_path);
 //
-//	image.Save((ws + L"\\" + std::to_wstring(nsample) + L".jpeg").c_str(), &pngClsid, NULL);
+//	//	image.Save((ws + L"\\" + std::to_wstring(nsample) + L".png").c_str(), &pngClsid, NULL);
+//	//	log_file << " Status of saving images is  " << image.GetLastStatus() << "\n";
+//	//}
+//	//DeleteObject(hCaptureBitmap);
+//	//DeleteDC(hCaptureDC);
+//	//ReleaseDC(hWnd, hWindowDC);
+//	
+//
+//	HDC hScreenDC = CreateDC("DISPLAY", NULL, NULL, NULL);
+//	// and a device context to put it in
+//	HDC hMemoryDC = CreateCompatibleDC(hScreenDC);
+//
+//	int width = GetDeviceCaps(hScreenDC, HORZRES);
+//	int height = GetDeviceCaps(hScreenDC, VERTRES);
+//
+//	// maybe worth checking these are positive values
+//	HBITMAP hBitmap = CreateCompatibleBitmap(hScreenDC, width, height);
+//
+//	// get a new bitmap
+//	HBITMAP hOldBitmap = (HBITMAP)SelectObject(hMemoryDC, hBitmap);
+//
+//	BitBlt(hMemoryDC, 0, 0, width, height, hScreenDC, 0, 0, SRCCOPY);
+//	hBitmap = (HBITMAP)SelectObject(hMemoryDC, hOldBitmap);
+//
+//	Gdiplus::Bitmap image(hBitmap, (HPALETTE)0);
+//	log_file << " Imagestatus after instantiation of screenshot trial is  " << image.GetLastStatus() << "\n";
+//	std::wstring ws(current_output_path.begin(), current_output_path.end());
+//	//std::wstring wsTmp(s.begin(), s.end());
+//	//ws = wsTmp;
+//	//StringToWString(ws, current_output_path);
+//
+//	image.Save((ws + L"\\frame_" + std::to_wstring(nsample) + L".png").c_str(), &pngClsid, NULL);
+//	log_file << " Status of saving images is  " << image.GetLastStatus() << "\n";
+//
+//	// clean up
+//	DeleteObject(hBitmap);
+//	DeleteDC(hMemoryDC);
+//	DeleteDC(hScreenDC);
+//	
 //}
 
-void DatasetAnnotator::save_frame() {
-	//log_file << "window handle before getDC is " << hWnd << "\n";
-	//HDC hWindowDC = GetDC(hWnd);
-	//log_file << "window handle after getDC is " << hWnd << "\n";
-	//log_file << "GetDC returns " << hWindowDC << "\n";
-	//HDC hCaptureDC = CreateCompatibleDC(hWindowDC);
-	//log_file << "CreateCompatibleDC returns " << hCaptureDC << "\n";
-	//HBITMAP hCaptureBitmap = CreateCompatibleBitmap(hWindowDC, SCREEN_WIDTH, SCREEN_HEIGHT);
-	//log_file << "CreateCompatibleBitmap returns " << hCaptureBitmap << "\n";
-	//auto sel_ret = SelectObject(hCaptureDC, hCaptureBitmap);
-	//log_file << "The return value of selectObject is " << sel_ret << "\n";
-	//auto has_suceeded = SetStretchBltMode(hCaptureDC, COLORONCOLOR);
-	//log_file << "the previous color streching mode before setting COLORONCOLOR is " << has_suceeded << "\n";
-	//if (!StretchBlt(hCaptureDC, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, hWindowDC, 0, 0, windowWidth, windowHeight, SRCCOPY | CAPTUREBLT)) {
-	//	auto err = GetLastError();
-	//	log_file << " StretchBlt returned the following error: " << err << "\n";
-	//}
-	//else {
-	//	Gdiplus::Bitmap image(hCaptureBitmap, NULL);
-	//	log_file << " Imagestatus after instantiation is  " << image.GetLastStatus() << "\n";
-	//	std::wstring ws(current_output_path.begin(), current_output_path.end());
-	//	//std::wstring wsTmp(s.begin(), s.end());
-	//	//ws = wsTmp;
-	//	//StringToWString(ws, current_output_path);
-
-	//	image.Save((ws + L"\\" + std::to_wstring(nsample) + L".png").c_str(), &pngClsid, NULL);
-	//	log_file << " Status of saving images is  " << image.GetLastStatus() << "\n";
-	//}
-	//DeleteObject(hCaptureBitmap);
-	//DeleteDC(hCaptureDC);
-	//ReleaseDC(hWnd, hWindowDC);
-	
-
-	HDC hScreenDC = CreateDC("DISPLAY", NULL, NULL, NULL);
-	// and a device context to put it in
-	HDC hMemoryDC = CreateCompatibleDC(hScreenDC);
-
-	int width = GetDeviceCaps(hScreenDC, HORZRES);
-	int height = GetDeviceCaps(hScreenDC, VERTRES);
-
-	// maybe worth checking these are positive values
-	HBITMAP hBitmap = CreateCompatibleBitmap(hScreenDC, width, height);
-
-	// get a new bitmap
-	HBITMAP hOldBitmap = (HBITMAP)SelectObject(hMemoryDC, hBitmap);
-
-	BitBlt(hMemoryDC, 0, 0, width, height, hScreenDC, 0, 0, SRCCOPY);
-	hBitmap = (HBITMAP)SelectObject(hMemoryDC, hOldBitmap);
-
-	Gdiplus::Bitmap image(hBitmap, (HPALETTE)0);
-	log_file << " Imagestatus after instantiation of screenshot trial is  " << image.GetLastStatus() << "\n";
-	std::wstring ws(current_output_path.begin(), current_output_path.end());
-	//std::wstring wsTmp(s.begin(), s.end());
-	//ws = wsTmp;
-	//StringToWString(ws, current_output_path);
-
-	image.Save((ws + L"\\frame_" + std::to_wstring(nsample) + L".png").c_str(), &pngClsid, NULL);
-	log_file << " Status of saving images is  " << image.GetLastStatus() << "\n";
-
-	// clean up
-	DeleteObject(hBitmap);
-	DeleteDC(hMemoryDC);
-	DeleteDC(hScreenDC);
-	
-}
-
-void DatasetAnnotator::setCameraMoving(Vector3 A, Vector3 B, Vector3 C, int fov) {
-	
-	CAM::DESTROY_ALL_CAMS(TRUE);
-	this->camera = CAM::CREATE_CAM((char *)"DEFAULT_SCRIPTED_CAMERA", TRUE);
-	//this->ped_with_cam = PED::CREATE_RANDOM_PED(A.x, A.y, A.z);
-	this->ped_with_cam = PLAYER::PLAYER_PED_ID();
-	ENTITY::SET_ENTITY_COORDS_NO_OFFSET(ped_with_cam, A.x, A.y, A.z, 0, 0, 1);
-	//AI::TASK_WANDER_IN_AREA(this->ped_with_cam, coords.x, coords.y, coords.z, WANDERING_RADIUS, 1.0, 1.0);
-	float z_offset = ((float)((rand() % (6)) - 2)) / 10;
-	CAM::ATTACH_CAM_TO_ENTITY(camera, this->ped_with_cam, 0, 0, z_offset, TRUE);
-	CAM::SET_CAM_ACTIVE(camera, TRUE);
-	CAM::SET_CAM_FOV(camera, (float)fov);
-	CAM::RENDER_SCRIPT_CAMS(TRUE, FALSE, 0, TRUE, TRUE);
-	//CAM::SET_CAM_MOTION_BLUR_STRENGTH(camera, 10.0);
-
-	//ENTITY::SET_ENTITY_HEALTH(ped_with_cam, 0);
-	WAIT(500);
-	//AI::CLEAR_PED_TASKS_IMMEDIATELY(ped_with_cam);
-	//PED::RESURRECT_PED(ped_with_cam);
-	//PED::REVIVE_INJURED_PED(ped_with_cam);
-	//PED::SET_PED_CAN_RAGDOLL(ped_with_cam, TRUE);
-
-	ENTITY::SET_ENTITY_COLLISION(ped_with_cam, TRUE, TRUE);
-	ENTITY::SET_ENTITY_VISIBLE(ped_with_cam, FALSE, FALSE);
-	ENTITY::SET_ENTITY_ALPHA(ped_with_cam, 0, FALSE);
-	ENTITY::SET_ENTITY_CAN_BE_DAMAGED(ped_with_cam, FALSE);
-	PED::SET_BLOCKING_OF_NON_TEMPORARY_EVENTS(ped_with_cam, TRUE);
-	PED::SET_PED_COMBAT_ATTRIBUTES(ped_with_cam, 1, FALSE);
-
-	Object seq = createNewSeq();
-	AI::OPEN_SEQUENCE_TASK(&seq);
-	//AI::TASK_USE_MOBILE_PHONE_TIMED(0, max_waiting_time + 10000);
-	AI::TASK_STAND_STILL(0, 10000);
-	AI::TASK_GO_TO_COORD_ANY_MEANS(0, A.x, A.y, A.z, 1.0, 0, 0, 786603, 0xbf800000);
-	AI::TASK_GO_TO_COORD_ANY_MEANS(0, B.x, B.y, B.z, 1.0, 0, 0, 786603, 0xbf800000);
-	AI::TASK_GO_TO_COORD_ANY_MEANS(0, C.x, C.y, C.z, 1.0, 0, 0, 786603, 0xbf800000);
-	AI::TASK_GO_TO_COORD_ANY_MEANS(0, B.x, B.y, B.z, 1.0, 0, 0, 786603, 0xbf800000);
-	AI::TASK_GO_TO_COORD_ANY_MEANS(0, A.x, A.y, A.z, 1.0, 0, 0, 786603, 0xbf800000);
-	AI::TASK_GO_TO_COORD_ANY_MEANS(0, B.x, B.y, B.z, 1.0, 0, 0, 786603, 0xbf800000);
-	AI::TASK_GO_TO_COORD_ANY_MEANS(0, C.x, C.y, C.z, 1.0, 0, 0, 786603, 0xbf800000);
-	AI::TASK_GO_TO_COORD_ANY_MEANS(0, B.x, B.y, B.z, 1.0, 0, 0, 786603, 0xbf800000);
-	AI::TASK_GO_TO_COORD_ANY_MEANS(0, A.x, A.y, A.z, 1.0, 0, 0, 786603, 0xbf800000);
-	AI::CLOSE_SEQUENCE_TASK(seq);
-	AI::TASK_PERFORM_SEQUENCE(ped_with_cam, seq);
-	AI::CLEAR_SEQUENCE_TASK(&seq);
-
-	// set the cam_coords used on update() function
-	this->cam_coords = CAM::GET_CAM_COORD(camera);
-	this->cam_rot = CAM::GET_CAM_ROT(camera, 2);
-}
+//void DatasetAnnotator::setCameraMoving(Vector3 A, Vector3 B, Vector3 C, int fov) {
+//	
+//	CAM::DESTROY_ALL_CAMS(TRUE);
+//	this->camera = CAM::CREATE_CAM((char *)"DEFAULT_SCRIPTED_CAMERA", TRUE);
+//	//this->ped_with_cam = PED::CREATE_RANDOM_PED(A.x, A.y, A.z);
+//	this->ped_with_cam = PLAYER::PLAYER_PED_ID();
+//	ENTITY::SET_ENTITY_COORDS_NO_OFFSET(ped_with_cam, A.x, A.y, A.z, 0, 0, 1);
+//	//AI::TASK_WANDER_IN_AREA(this->ped_with_cam, coords.x, coords.y, coords.z, WANDERING_RADIUS, 1.0, 1.0);
+//	float z_offset = ((float)((rand() % (6)) - 2)) / 10;
+//	CAM::ATTACH_CAM_TO_ENTITY(camera, this->ped_with_cam, 0, 0, z_offset, TRUE);
+//	CAM::SET_CAM_ACTIVE(camera, TRUE);
+//	CAM::SET_CAM_FOV(camera, (float)fov);
+//	CAM::RENDER_SCRIPT_CAMS(TRUE, FALSE, 0, TRUE, TRUE);
+//	//CAM::SET_CAM_MOTION_BLUR_STRENGTH(camera, 10.0);
+//
+//	//ENTITY::SET_ENTITY_HEALTH(ped_with_cam, 0);
+//	WAIT(500);
+//	//AI::CLEAR_PED_TASKS_IMMEDIATELY(ped_with_cam);
+//	//PED::RESURRECT_PED(ped_with_cam);
+//	//PED::REVIVE_INJURED_PED(ped_with_cam);
+//	//PED::SET_PED_CAN_RAGDOLL(ped_with_cam, TRUE);
+//
+//	ENTITY::SET_ENTITY_COLLISION(ped_with_cam, TRUE, TRUE);
+//	ENTITY::SET_ENTITY_VISIBLE(ped_with_cam, FALSE, FALSE);
+//	ENTITY::SET_ENTITY_ALPHA(ped_with_cam, 0, FALSE);
+//	ENTITY::SET_ENTITY_CAN_BE_DAMAGED(ped_with_cam, FALSE);
+//	PED::SET_BLOCKING_OF_NON_TEMPORARY_EVENTS(ped_with_cam, TRUE);
+//	PED::SET_PED_COMBAT_ATTRIBUTES(ped_with_cam, 1, FALSE);
+//
+//	Object seq = createNewSeq();
+//	AI::OPEN_SEQUENCE_TASK(&seq);
+//	//AI::TASK_USE_MOBILE_PHONE_TIMED(0, max_waiting_time + 10000);
+//	AI::TASK_STAND_STILL(0, 10000);
+//	AI::TASK_GO_TO_COORD_ANY_MEANS(0, A.x, A.y, A.z, 1.0, 0, 0, 786603, 0xbf800000);
+//	AI::TASK_GO_TO_COORD_ANY_MEANS(0, B.x, B.y, B.z, 1.0, 0, 0, 786603, 0xbf800000);
+//	AI::TASK_GO_TO_COORD_ANY_MEANS(0, C.x, C.y, C.z, 1.0, 0, 0, 786603, 0xbf800000);
+//	AI::TASK_GO_TO_COORD_ANY_MEANS(0, B.x, B.y, B.z, 1.0, 0, 0, 786603, 0xbf800000);
+//	AI::TASK_GO_TO_COORD_ANY_MEANS(0, A.x, A.y, A.z, 1.0, 0, 0, 786603, 0xbf800000);
+//	AI::TASK_GO_TO_COORD_ANY_MEANS(0, B.x, B.y, B.z, 1.0, 0, 0, 786603, 0xbf800000);
+//	AI::TASK_GO_TO_COORD_ANY_MEANS(0, C.x, C.y, C.z, 1.0, 0, 0, 786603, 0xbf800000);
+//	AI::TASK_GO_TO_COORD_ANY_MEANS(0, B.x, B.y, B.z, 1.0, 0, 0, 786603, 0xbf800000);
+//	AI::TASK_GO_TO_COORD_ANY_MEANS(0, A.x, A.y, A.z, 1.0, 0, 0, 786603, 0xbf800000);
+//	AI::CLOSE_SEQUENCE_TASK(seq);
+//	AI::TASK_PERFORM_SEQUENCE(ped_with_cam, seq);
+//	AI::CLEAR_SEQUENCE_TASK(&seq);
+//
+//	// set the cam_coords used on update() function
+//	this->cam_coords = CAM::GET_CAM_COORD(camera);
+//	this->cam_rot = CAM::GET_CAM_ROT(camera, 2);
+//}
 
 void DatasetAnnotator::setCameraFixed(Vector3 coords, Vector3 rot, float cam_z, int fov) {
 
@@ -791,7 +816,8 @@ Object DatasetAnnotator::createNewSeq()
 }
 
 void DatasetAnnotator::loadScenario()
-{	
+{		
+	
 	if (scenario_names_.empty()) {
 		set_status_text("Warning: No more scenarios left. Reusing already recorded scenarios from the beginning.");
 		readInScenarios();
@@ -801,6 +827,8 @@ void DatasetAnnotator::loadScenario()
 	const std::string actual_name = *scenario_names_.begin();
 	already_recorded_scenarios_.insert(actual_name);
 	scenario_names_.erase(scenario_names_.begin());
+
+	
 
 	if (actual_name.find("_") == std::string::npos) {
 		set_status_text("Warning: Specified name of scenarios file is not valid! Skipping and taking the next file.");
@@ -841,11 +869,7 @@ void DatasetAnnotator::loadScenario()
 	joint_int_codes[19] = m.find("SKEL_L_Calf")->second;
 	joint_int_codes[20] = m.find("SKEL_L_Foot")->second;
 
-	//open actual scenarios file and load the data
-	FILE *f = fopen(actual_name.c_str(), "r");
-	Vector3 cCoords, cRot;
-	Vector3 vTP1, vTP2, vTP1_rot, vTP2_rot;
-	int stop;
+	
 
 	// weather type and time
 	int time_h, time_m, time_s;
@@ -862,10 +886,25 @@ void DatasetAnnotator::loadScenario()
 		// fixme add error handling here
 		return;
 	}
+	/*try {
+		if (!load_log.is_open()) {
+			load_log.open(current_output_path + "\\load_log.txt");
+		}
+		load_log << "Entered load scenario method!\n";
+		load_log.close();
+	}catch(const std::ios_base::failure ex){
+	}*/
+	
 
-	log_file.open(current_output_path + "\\log.txt");
+	//open actual scenarios file and load the data
+	FILE *f = fopen(actual_name.c_str(), "r");
+	Vector3 cCoords, cRot;
+	Vector3 vTP1, vTP2, vTP1_rot, vTP2_rot;
+	int stop;
 
 	fscanf_s(f, "%d ", &moving);
+	// disable camera moving for the moment
+	moving = false;
 	if (moving == 0) 
 		fscanf_s(f, "%f %f %f %d %f %f %f\n", &cCoords.x, &cCoords.y, &cCoords.z, &stop, &cRot.x, &cRot.y, &cRot.z);
 	else 
@@ -888,8 +927,6 @@ void DatasetAnnotator::loadScenario()
 	lockCam(vTP2, vTP2_rot);
 
 	WAIT(10000);
-
-	set_status_text("Teleported cam!", 1000, true);
 
 	if (moving == 0)
 		ENTITY::SET_ENTITY_COORDS_NO_OFFSET(e, cCoords.x, cCoords.y, cCoords.z, 0, 0, 1);
@@ -943,18 +980,18 @@ void DatasetAnnotator::loadScenario()
 	GAMEPLAY::SET_WEATHER_TYPE_NOW_PERSIST((char *)weather_types[weather]);
 	GAMEPLAY::CLEAR_WEATHER_TYPE_PERSIST();
 
-	if (moving == 0)
-		DatasetAnnotator::setCameraFixed(cCoords, cRot, 0, fov);
-	else
-		DatasetAnnotator::setCameraMoving(A, B, C, fov);
+	/*if (moving == 0)*/
+	DatasetAnnotator::setCameraFixed(cCoords, cRot, 0, fov);
+	/*else
+		DatasetAnnotator::setCameraMoving(A, B, C, fov);*/
 
 
 
-
+	log_file.open(current_output_path + "\\log.txt");
 	coords_file.open(current_output_path + "\\coords.csv");
 	coords_file << "frame,pedestrian_id,joint_type,2D_x,2D_y,3D_x,3D_y,3D_z,occluded,self_occluded,";
 	coords_file << "cam_3D_x,cam_3D_y,cam_3D_z,cam_rot_x,cam_rot_y,cam_rot_z,fov\n";
-
+	//coords_file << "frame,pedestrian_id,joint_type,2D_x,2D_y,3D_x,3D_y,3D_z,occluded,self_occluded\n";
 	this->player = PLAYER::PLAYER_ID();
 	this->playerPed = PLAYER::PLAYER_PED_ID();
 	this->line = "";
@@ -1001,19 +1038,19 @@ void DatasetAnnotator::loadScenario()
 
 	//Screen capture buffer
 	GRAPHICS::GET_SCREEN_RESOLUTION(&windowHeight,&windowWidth);
-	log_file << "Widowheight non active is " << windowHeight << "; Windowwidth non active is " << windowWidth << "\n";
+	/*log_file << "Widowheight non active is " << windowHeight << "; Windowwidth non active is " << windowWidth << "\n";*/
 
 	GRAPHICS::_GET_SCREEN_ACTIVE_RESOLUTION(&windowWidth, &windowHeight);
 	/*windowWidth = SCREEN_WIDTH;
 	windowHeight = SCREEN_HEIGHT;*/
-	log_file << "Widowheight is " << windowHeight << "; Windowwidth is " << windowWidth <<"\n";
+	/*log_file << "Widowheight is " << windowHeight << "; Windowwidth is " << windowWidth <<"\n";*/
 
-	/*hWnd = ::FindWindow(NULL, "Compatitibility Theft Auto V");
+	hWnd = ::FindWindow(NULL, "Compatitibility Theft Auto V");
 	hWindowDC = GetDC(hWnd);
 	hCaptureDC = CreateCompatibleDC(hWindowDC);
 	hCaptureBitmap = CreateCompatibleBitmap(hWindowDC, SCREEN_WIDTH, SCREEN_HEIGHT);
 	SelectObject(hCaptureDC, hCaptureBitmap);
-	SetStretchBltMode(hCaptureDC, COLORONCOLOR);*/
+	SetStretchBltMode(hCaptureDC, COLORONCOLOR);
 
 	//hWnd1 = ::FindWindow(NULL, _T("Launcher"));
 	//if (hWnd1 == NULL) {
@@ -1050,14 +1087,17 @@ void DatasetAnnotator::loadScenario()
 	// create offsets for current scenario
 	offset_x = static_cast<float>(SCREEN_WIDTH) - static_cast<float>(windowWidth);
 	offset_y = static_cast<float>(SCREEN_HEIGHT) - static_cast<float>(windowHeight);
-
-	log_file << "Offset in x direction is " << offset_x << "; offset in y is " << offset_y << "\n";
+	/*if (!load_log.is_open()) {
+		load_log.open(current_output_path + "\\load_log.txt");
+	}
+	load_log << "Offset in x direction is " << offset_x << "; offset in y is " << offset_y << "\n";
+	load_log.close();*/
 	// initialize recording stuff
 	Gdiplus::GdiplusStartupInput gdiplusStartupInput;
 	
 	GdiplusStartup(&gdiplusToken, &gdiplusStartupInput, NULL);
 	GetEncoderClsid(L"image/bmp", &bmpClsid);
-	GetEncoderClsid(L"image/png", &pngClsid);
+	GetEncoderClsid(L"image/jpeg", &pngClsid);
 
 	//for (std::size_t i = 0; i < 7; i++) {
 	//	hChild = GetWindow(hWnd1, i);
@@ -1102,8 +1142,6 @@ void DatasetAnnotator::loadScenario()
 
 void DatasetAnnotator::resetStates()
 {	
-	
-
 	set_status_text("Reset Function of Dataset Annotator was called!", 1000, true);
 	// reset the number of peds that are left
 	n_peds_left = max_number_of_peds;
@@ -1120,18 +1158,18 @@ void DatasetAnnotator::resetStates()
 		coords_file.close();
 	}
 
-	if (log_file.is_open()) {
+	/*if (log_file.is_open()) {
 		log_file.close();
-	}
+	}*/
 	// reset time scale in order to make the user see that recording has ended
 	GAMEPLAY::SET_TIME_SCALE(1.0f);
 
 	// Set the count for the sequence tasks to zero
 	seq_count_ = 0;
 
-	/*DeleteObject(hCaptureBitmap);
+	DeleteObject(hCaptureBitmap);
 	DeleteDC(hCaptureDC);
-	ReleaseDC(hWnd, hWindowDC);*/
+	ReleaseDC(hWnd, hWindowDC);
 	Gdiplus::GdiplusShutdown(gdiplusToken);
 
 }
@@ -1144,11 +1182,11 @@ void DatasetAnnotator::spawn_peds_flow(Vector3 pos, Vector3 goFrom, Vector3 goTo
 		return;
 	}
 	if (max_len < npeds) {
-		log_file << "WARNING: not able to spawn more peds, max number of available peds is " << n_peds_left << "; numbe of reauired peds is " << 2*npeds << "\n";
+		//log_file << "WARNING: not able to spawn more peds, max number of available peds is " << n_peds_left << "; numbe of reauired peds is " << 2*npeds << "\n";
 	}
 
 	const auto actual_npeds = max_len < npeds ? max_len : npeds;
-	log_file << "Spawn peds flow: Actual nr of peds is " << actual_npeds << "\n";
+	//log_file << "Spawn peds flow: Actual nr of peds is " << actual_npeds << "\n";
 
 
 	std::vector<std::pair<Ped, Ped>> peds;
@@ -1159,7 +1197,7 @@ void DatasetAnnotator::spawn_peds_flow(Vector3 pos, Vector3 goFrom, Vector3 goTo
 		peds.push_back(std::make_pair(PED::CREATE_RANDOM_PED(goFrom.x, goFrom.y, goFrom.z), PED::CREATE_RANDOM_PED(goTo.x, goTo.y, goTo.z)));
 		WAIT(100);
 	}
-	log_file << "Spawn peds flow: length of peds vector is " << peds.size() << "\n";
+	//log_file << "Spawn peds flow: length of peds vector is " << peds.size() << "\n";
 
 	WAIT(2000);
 
@@ -1266,11 +1304,11 @@ void DatasetAnnotator::spawn_peds(Vector3 pos, Vector3 goFrom, Vector3 goTo, int
 
 	const auto max_len = n_peds_left;
 	if (max_len <= 0) {
-		log_file << "WARNING: not able to spawn more peds, returning because none is left.\n";
+		//log_file << "WARNING: not able to spawn more peds, returning because none is left.\n";
 		return;
 	}
 	if (max_len < npeds) {
-		log_file << "WARNING: not able to spawn more peds, max number of available peds is " << n_peds_left << "; number of reauired peds is " << npeds << "\n";
+		//log_file << "WARNING: not able to spawn more peds, max number of available peds is " << n_peds_left << "; number of reauired peds is " << npeds << "\n";
 	}
 
 	const auto actual_npeds = max_len < npeds ? max_len : npeds;

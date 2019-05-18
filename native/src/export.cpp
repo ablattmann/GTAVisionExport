@@ -132,17 +132,17 @@ static ComPtr<ID3D11Texture2D> CreateTexHelper(ID3D11Device* dev, DXGI_FORMAT fm
 	return result;
 
 }
-static ComPtr<ID3D11Buffer> CreateStagingBuffer(ID3D11Device* dev, int size) {
-	ComPtr<ID3D11Buffer> result;
-	D3D11_BUFFER_DESC desc = { 0 };
-	desc.BindFlags = 0;
-	desc.ByteWidth = size;
-	desc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
-	desc.MiscFlags = 0;
-	desc.Usage = D3D11_USAGE_STAGING;
-	dev->CreateBuffer(&desc, nullptr, &result);
-	return result;
-}
+//static ComPtr<ID3D11Buffer> CreateStagingBuffer(ID3D11Device* dev, int size) {
+//	ComPtr<ID3D11Buffer> result;
+//	D3D11_BUFFER_DESC desc = { 0 };
+//	desc.BindFlags = 0;
+//	desc.ByteWidth = size;
+//	desc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
+//	desc.MiscFlags = 0;
+//	desc.Usage = D3D11_USAGE_STAGING;
+//	dev->CreateBuffer(&desc, nullptr, &result);
+//	return result;
+//}
 
 void CreateTextureIfNeeded(ID3D11Device* dev, ID3D11Resource* for_res, ComPtr<ID3D11Texture2D>* tex_target)
 {
@@ -240,18 +240,18 @@ void ExtractColorBuffer(ID3D11Device* dev, ID3D11DeviceContext* ctx, ID3D11Resou
 	
 }
 
-void ExtractConstantBuffer(ID3D11Device* dev, ID3D11DeviceContext* ctx, ID3D11Buffer* buf) {
-	lastDev = dev;
-	lastCtx = ctx;
-	D3D11_BUFFER_DESC desc = { 0 };
-	buf->GetDesc(&desc);
-	if (constantBuf == nullptr) {
-		constantBuf = CreateStagingBuffer(dev, desc.ByteWidth);
-	}
-	ctx->CopyResource(constantBuf.Get(), buf);
-	last_constant_time = high_resolution_clock::now();
-	
-}
+//void ExtractConstantBuffer(ID3D11Device* dev, ID3D11DeviceContext* ctx, ID3D11Buffer* buf) {
+//	lastDev = dev;
+//	lastCtx = ctx;
+//	D3D11_BUFFER_DESC desc = { 0 };
+//	buf->GetDesc(&desc);
+//	if (constantBuf == nullptr) {
+//		constantBuf = CreateStagingBuffer(dev, desc.ByteWidth);
+//	}
+//	ctx->CopyResource(constantBuf.Get(), buf);
+//	last_constant_time = high_resolution_clock::now();
+//	
+//}
 
 extern "C" {
 	__declspec(dllexport) int export_get_depth_buffer(void** buf)

@@ -63,6 +63,9 @@ static bool hooked = false;
 static bool recording = false;
 static bool load_new = false;
 static bool reset = false;
+static bool mapshot = false;
+
+static int n_frame = 0;
 
 
 //-------------------------
@@ -183,56 +186,58 @@ inline void exportStencilToBitmap(void** buf, std::size_t size, const std::strin
 	
 	fprintf(log,"Status after image saving is %d\n", image.GetLastStatus());
 	fclose(log);
+	helper = nullptr;
 	//delete[] ordered;
 }
 
-inline void exportPNG(void** buf, std::size_t size, const std::string& output_path) {
-	
-	const auto window_width = annotator->getWindowWidth();
-	const auto window_height = annotator->getWindowHeight();
-
-	std::wstring ws;
-	StringToWString(ws, output_path);
-
-	FILE* log = fopen("GTANativePlugin.log", "a");
-	
-	// multiply with 4 because of RGBA representation of the images
-	if (size != window_width * window_height*4) {
-		int res_x, res_y;
-		GRAPHICS::GET_SCREEN_RESOLUTION(&res_x, &res_y);
-
-		if (size == res_y * res_x * 4) {
-			fprintf(log, "WARNING: window height and width are not equal to number of elements in semantic mask due to Screen Resolution! Saving downsampled image.\n");
-			auto helper = static_cast<BYTE *>(*buf);
-			Gdiplus::Bitmap image(res_x, res_y, res_x, PixelFormat32bppARGB, helper);
-			fprintf(log, "Status after image instantiating is %d\n", image.GetLastStatus());
-
-			const auto png_id = annotator->getCLSIDPNG();
-			image.Save(ws.c_str(), &png_id, NULL);
-
-			fprintf(log, "Status after image saving is %d\n", image.GetLastStatus());
-
-		}
-		else {
-			fprintf(log, "WARNING: window height and width are not equal to number of elements in semantic mask due to Screen Resolution! Not saving image.\n");
-		}
-		fclose(log);
-		return;
-	}
-
-	fprintf(log,"Saving image.\n");
-	auto helper = static_cast<BYTE *>(*buf);
-	Gdiplus::Bitmap image(window_width, window_height, window_width, PixelFormat32bppARGB, helper);
-	fprintf(log, "Status after image instantiating is %d\n", image.GetLastStatus());
-
-	const auto png_id = annotator->getCLSIDPNG();
-	image.Save(ws.c_str(), &png_id, NULL);
-
-	fprintf(log, "Status after image saving is %d\n", image.GetLastStatus());
-}
+//inline void exportPNG(void** buf, std::size_t size, const std::string& output_path) {
+//	
+//	const auto window_width = annotator->getWindowWidth();
+//	const auto window_height = annotator->getWindowHeight();
+//
+//	std::wstring ws;
+//	StringToWString(ws, output_path);
+//
+//	FILE* log = fopen("GTANativePlugin.log", "a");
+//	
+//	// multiply with 4 because of RGBA representation of the images
+//	if (size != window_width * window_height*4) {
+//		int res_x, res_y;
+//		GRAPHICS::GET_SCREEN_RESOLUTION(&res_x, &res_y);
+//
+//		if (size == res_y * res_x * 4) {
+//			fprintf(log, "WARNING: window height and width are not equal to number of elements in semantic mask due to Screen Resolution! Saving downsampled image.\n");
+//			auto helper = static_cast<BYTE *>(*buf);
+//			Gdiplus::Bitmap image(res_x, res_y, res_x, PixelFormat32bppARGB, helper);
+//			fprintf(log, "Status after image instantiating is %d\n", image.GetLastStatus());
+//
+//			const auto png_id = annotator->getCLSIDPNG();
+//			image.Save(ws.c_str(), &png_id, NULL);
+//
+//			fprintf(log, "Status after image saving is %d\n", image.GetLastStatus());
+//
+//		}
+//		else {
+//			fprintf(log, "WARNING: window height and width are not equal to number of elements in semantic mask due to Screen Resolution! Not saving image.\n");
+//		}
+//		fclose(log);
+//		return;
+//	}
+//
+//	fprintf(log,"Saving image.\n");
+//	auto helper = static_cast<BYTE *>(*buf);
+//	Gdiplus::Bitmap image(window_width, window_height, window_width, PixelFormat32bppARGB, helper);
+//	fprintf(log, "Status after image instantiating is %d\n", image.GetLastStatus());
+//
+//	const auto png_id = annotator->getCLSIDPNG();
+//	image.Save(ws.c_str(), &png_id, NULL);
+//
+//	fprintf(log, "Status after image saving is %d\n", image.GetLastStatus());
+//}
 
 inline void saveBuffersAndAnnotations(const int frame_nr) 
 {	
+	mapshot = false;
 	 //here we have to export all the data required, based on pushing a specific button (I would suggest 'L')
 	//const std::string depth_path = "depth_" + std::to_string(frame_nr) + ".raw";
 	//const std::string stenc_path = "stencil_" + std::to_string(frame_nr) + ".raw";
@@ -257,9 +262,10 @@ inline void saveBuffersAndAnnotations(const int frame_nr)
 	/*f = fopen((out + "\\" + stenc_path).c_str(), "w");*/
 	int size = export_get_stencil_buffer(&stenc_buf);
 	exportStencilToBitmap(&stenc_buf,size,out + "\\" + sem_string);
+	
 	/*fwrite(buf, 1, size, f);
 	fclose(f);*/
-	void* buf;
+	//void* buf;
 	//auto f = fopen((out + "\\" + col_path).c_str(), "w");
 	//size = export_get_color_buffer(&buf);
 	//// FIXME debug this function in order not to be dependend of postprocessing
@@ -267,7 +273,7 @@ inline void saveBuffersAndAnnotations(const int frame_nr)
 	//fwrite(buf, 1, size, f);
 	//fclose(f);
 	//buf = nullptr;
-	//stenc_buf = nullptr;
+	stenc_buf = nullptr;
 }
 
 // This is a template function for hooks for arbitrary devices, i.e. arbitrary hook functions
@@ -333,23 +339,23 @@ void draw_hook_impl()
 	fprintf(f, "Draw Call\n");
 	fclose(f);
 }
-void draw_indexed_hook(ID3D11DeviceContext* self, UINT indexCount, UINT startLoc, UINT baseLoc) {
-	auto origMethod = reinterpret_cast<decltype(draw_indexed_hook)*>(orig<drawIndexedOffset, ID3D11DeviceContext>);
-	HRESULT hr;
-	ComPtr<ID3D11VertexShader> vs;
-	self->VSGetShader(&vs, nullptr, nullptr);
-	ComPtr<ID3D11Buffer> buf;
-	ComPtr<ID3D11Device> dev;
-	self->GetDevice(&dev);
-	self->VSGetConstantBuffers(1, 1, &buf);
-	if (buf != nullptr && draw_indexed_count == 1000) {
-		lastConstants = buf;
-		ExtractConstantBuffer(dev.Get(), self, buf.Get());
-	}
-	
-	draw_indexed_count += 1;
-	origMethod(self, indexCount, startLoc, baseLoc);
-}
+//void draw_indexed_hook(ID3D11DeviceContext* self, UINT indexCount, UINT startLoc, UINT baseLoc) {
+//	auto origMethod = reinterpret_cast<decltype(draw_indexed_hook)*>(orig<drawIndexedOffset, ID3D11DeviceContext>);
+//	HRESULT hr;
+//	ComPtr<ID3D11VertexShader> vs;
+//	self->VSGetShader(&vs, nullptr, nullptr);
+//	ComPtr<ID3D11Buffer> buf;
+//	ComPtr<ID3D11Device> dev;
+//	self->GetDevice(&dev);
+//	self->VSGetConstantBuffers(1, 1, &buf);
+//	if (buf != nullptr && draw_indexed_count == 1000) {
+//		lastConstants = buf;
+//		ExtractConstantBuffer(dev.Get(), self, buf.Get());
+//	}
+//	
+//	draw_indexed_count += 1;
+//	origMethod(self, indexCount, startLoc, baseLoc);
+//}
 void clear_render_target_view_hook(ID3D11DeviceContext* self, ID3D11RenderTargetView* rtv, float color[4])
 {
 	auto origMethod = reinterpret_cast<void (*)(ID3D11DeviceContext*, ID3D11RenderTargetView*, float[4])>(orig<50, ID3D11DeviceContext>);
@@ -445,7 +451,7 @@ void presentCallback(void* chain)
 	if (hr != S_OK) throw std::system_error(hr, std::system_category());
 	// guarantee thread safety
 	multithread->SetMultithreadProtected(true);
-	hook_function<drawIndexedOffset>(ctx.Get(), &draw_indexed_hook);
+	//hook_function<drawIndexedOffset>(ctx.Get(), &draw_indexed_hook);
 	//hook_function<50>(ctx.Get(), &clear_render_target_view_hook);
 	hook_function<clearDepthStencilViewOffset>(ctx.Get(), &clear_depth_stencil_view_hook);
 	if (f == nullptr) throw std::system_error(errno, std::system_category());
@@ -457,25 +463,25 @@ void presentCallback(void* chain)
 	lastRtv->GetResource(&colorres);
 	ExtractColorBuffer(dev.Get(), ctx.Get(), colorres.Get());
 
-	if (recording) {
+	//if (recording) {
 		// datasatAnnnotator extracts the files to respective repo
-		const int frame_nr = annotator->update();
+		/*const int frame_nr = annotator->update();*/
 
 		// WAIT
 
 		// store buffers into the same repo
-		if(frame_nr>=0) saveBuffersAndAnnotations(frame_nr);
-		
+		/*if(frame_nr>=0) saveBuffersAndAnnotations(frame_nr);*/
+		if (mapshot) saveBuffersAndAnnotations(n_frame);
 
-		if (frame_nr >= annotator->getMaxFrames()) {
-			// stop recording
-			recording = false;
-			if (annotator->recordAllSeqs()) {
-				reset=true;
-			}
-			// fixme add info message here
-		}
-	}
+		//if (frame_nr >= annotator->getMaxFrames()) {
+		//	// stop recording
+		//	recording = false;
+		//	if (annotator->recordAllSeqs()) {
+		//		reset=true;
+		//	}
+		//	// fixme add info message here
+		//}
+	//}
 	//lastDsv.Reset();
 	lastDsv = nullptr;
 	lastRtv = nullptr;
@@ -492,18 +498,42 @@ void reactionOnKeyboard() {
 				load_new = false;
 				annotator->loadScenario();
 				Sleep(100);
-				recording = true;
-				//annotator->drawText("Start recording!");
-			}
-			else if (reset) {
-				recording = false;
-				reset = false;
-				annotator->drawText("Finish recording!");
+
+				/*const int n_frames = annotator->getMaxFrames();*/
+				while (n_frame < annotator->getMaxFrames()) {
+					n_frame = annotator->update();
+					/*n_frame = frame_nr;*/
+					mapshot = true;
+					WAIT(0);
+				}
+				mapshot = false;
+				reset = true;
+				WAIT(200);
 				annotator->resetStates();
 				WAIT(5000);
 				load_new = true;
-				Sleep(100);
-			}
+				//annotator->drawText("Start recording!");
+			} //else if (reset) {
+			//	recording = false;
+			//	reset = false;
+			//	annotator->drawText("Finish recording!");
+			//	annotator->resetStates();
+			//	WAIT(5000);
+			//	load_new = true;
+			//	Sleep(100);
+			//} else if (recording && !mapshot) {
+			//	n_frame = annotator->update();
+			//	/*n_frame = frame_nr;*/
+			//	mapshot = true;
+			//	if (n_frame >= annotator->getMaxFrames()) {
+			//		mapshot = false;
+			//		// stop recording
+			//		recording = false;
+			//		if (annotator->recordAllSeqs()) {
+			//			reset = true;
+			//		}
+			//	}
+			//}
 			WAIT(0);
 		}
 	}

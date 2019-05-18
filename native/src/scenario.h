@@ -140,7 +140,6 @@ public:
 	int getWindowWidth() const{ return this->windowWidth; }
 	int getWindowHeight() const{ return this->windowHeight; }
 	bool recordAllSeqs() const { return this->RECORD_ALL_SEQS; }
-
 	~DatasetAnnotator();
 
 private:
@@ -167,7 +166,7 @@ private:
 	Ped ped_spawned[max_number_of_peds];
 	int n_peds;
 	std::vector<const char*> bad_scenarios; // 36
-	int ped_with_cam;
+	//int ped_with_cam;
 	std::string file_scenarios_path;
 	
 	std::vector<Ped> overall_peds = {};
@@ -189,19 +188,20 @@ private:
 	int max_waiting_time = 0;
 	int is_night;
 	Object seq_count_ = 0;
+	int nsample = 0;
 
 	int n_peds_left = max_number_of_peds;
 
-	/*HWND hWnd,hWnd1,hWnd2,hChild,hChild1,hChild2;
+	HWND hWnd;// hWnd1, hWnd2, hChild, hChild1, hChild2;
 	HDC hWindowDC;
 	HDC hCaptureDC;
 	HBITMAP hCaptureBitmap;
-*/
+
 	float recordingPeriod;
 	std::clock_t lastRecordingTime;
-	int nsample;
+	
 	std::ofstream coords_file;								// file used to save joints coordinates data
-	std::ofstream log_file;									// file used to save joints coordinates data
+	std::ofstream log_file;									// logging while updating
 
 	CLSID bmpClsid, pngClsid;
 	ULONG_PTR gdiplusToken;
@@ -209,7 +209,7 @@ private:
 	void registerParams();
 	void get_2D_from_3D(Vector3 v, float *x, float *y);														// function used to capture frames internally, then private
 	void setCameraFixed(Vector3 coords, Vector3 rot, float cam_z, int fov);
-	void setCameraMoving(Vector3 A, Vector3 B, Vector3 C, int fov);							// function used to set the camera stuff										// function used to spawn pedestrians at the beginning of the scenario
+	//void setCameraMoving(Vector3 A, Vector3 B, Vector3 C, int fov);							// function used to set the camera stuff										// function used to spawn pedestrians at the beginning of the scenario
 	Vector3 teleportPlayer(Vector3 pos);													// function used to teleport the player to a random position returned by the function
 	void spawn_peds_flow(Vector3 pos, Vector3 goFrom, Vector3 goTo, int npeds, int ngroup, int task_time, int type, int radius, 
 		int min_lenght, int time_between_walks, int spawning_radius, float speed);
