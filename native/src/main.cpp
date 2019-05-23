@@ -22,6 +22,7 @@
 #include <memory>
 #include "scenario.h"
 #include "keyboard.h"
+#include <mutex>
 using Microsoft::WRL::ComPtr;
 using namespace std::experimental::filesystem;
 using namespace std::string_literals;
@@ -63,7 +64,8 @@ static bool hooked = false;
 static bool recording = false;
 static bool load_new = false;
 static bool reset = false;
-static bool mapshot = false;
+bool mapshot = false;
+std::mutex mut;
 
 static int n_frame = 0;
 
@@ -114,6 +116,12 @@ int __stdcall DllMain(HMODULE hinstance, DWORD reason, LPVOID lpReserved)
 	return TRUE;
 }
 
+void toggleMapshot(const bool flag) {
+	std::lock_guard<std::mutex> lock(mut);
+	mapshot = flag;
+}
+
+
 inline int StringToWString(std::wstring &ws, const std::string &s)
 {
 	std::wstring wsTmp(s.begin(), s.end());
@@ -129,7 +137,7 @@ inline void exportStencilToBitmap(void** buf, std::size_t size, const std::strin
 	std::wstring ws;
 	StringToWString(ws, output_path);
 
-	FILE* log = fopen("GTANativePlugin.log", "a");
+	//FILE* log = fopen("GTANativePlugin.log", "a");
 
 	if (static_cast<std::size_t>(window_width * window_height) != size) {
 
@@ -139,27 +147,27 @@ inline void exportStencilToBitmap(void** buf, std::size_t size, const std::strin
 		GRAPHICS::_GET_SCREEN_ACTIVE_RESOLUTION(&res_x,&res_y);
 
 		if (size == res_y * res_x) {
-			fprintf(log, "WARNING: window height and width are not equal to number of elements in semantic mask due to Screen Resolution! Saving downsampled mask.\n");
+			//fprintf(log, "WARNING: window height and width are not equal to number of elements in semantic mask due to Screen Resolution! Saving downsampled mask.\n");
 			auto helper = static_cast<BYTE *>(*buf);
 			Gdiplus::Bitmap image(res_x, res_y, res_x, PixelFormat8bppIndexed, helper);
-			fprintf(log, "Status after image instantiating is %d\n", image.GetLastStatus());
+			//fprintf(log, "Status after image instantiating is %d\n", image.GetLastStatus());
 
 			const auto bmp_id = annotator->getCLSID();
 			image.Save(ws.c_str(), &bmp_id, NULL);
 
-			fprintf(log, "Status after image saving is %d\n", image.GetLastStatus());
+			//fprintf(log, "Status after image saving is %d\n", image.GetLastStatus());
 			
 		}
-		else {
+		/*else {
 			fprintf(log, "WARNING: window height and width are not equal to number of elements in semantic mask due to Screen Resolution! Not saving semantic mask.\n");
-		}
-		fclose(log);
+		}*/
+		//fclose(log);
 		return;
 	}
 
-	fprintf(log, "Before instantiating helper.\n");
+	//fprintf(log, "Before instantiating helper.\n");
 	auto helper = static_cast<BYTE *>(*buf);
-	fprintf(log, "After instantiating helper.\n");
+	//fprintf(log, "After instantiating helper.\n");
 	//for (std::size_t i = 0; i < size ; i++) {
 	//	// use mask to only retain the first 4 Bits
 	//	helper[i] = helper[i] & 0x0F;
@@ -174,18 +182,18 @@ inline void exportStencilToBitmap(void** buf, std::size_t size, const std::strin
 
 	//	}
 	//}
-	fprintf(log, "After mask loop.\n");
+	/*fprintf(log, "After mask loop.\n");*/
 	
 	//auto img_data = static_cast<BYTE *>(*buf);
 	// stride is window width as we want to constructn image with one byte depth
 	Gdiplus::Bitmap image(window_width, window_height, window_width, PixelFormat8bppIndexed , helper);
-	fprintf(log, "Status after image instantiating is %d\n", image.GetLastStatus());
+	//fprintf(log, "Status after image instantiating is %d\n", image.GetLastStatus());
 
 	const auto bmp_id = annotator->getCLSID();
 	image.Save(ws.c_str(), &bmp_id , NULL);
 	
-	fprintf(log,"Status after image saving is %d\n", image.GetLastStatus());
-	fclose(log);
+	//fprintf(log,"Status after image saving is %d\n", image.GetLastStatus());
+	//fclose(log);
 	helper = nullptr;
 	//delete[] ordered;
 }
@@ -235,33 +243,49 @@ inline void exportStencilToBitmap(void** buf, std::size_t size, const std::strin
 //	fprintf(log, "Status after image saving is %d\n", image.GetLastStatus());
 //}
 
-inline void saveBuffersAndAnnotations(const int frame_nr) 
+inline void saveBuffersAndAnnotations(const int frame_nr,const int window_width, const int window_height,const std::string& out_dir) 
 {	
-	mapshot = false;
+	//toggleMapshot(false);
 	 //here we have to export all the data required, based on pushing a specific button (I would suggest 'L')
-	//const std::string depth_path = "depth_" + std::to_string(frame_nr) + ".raw";
-	//const std::string stenc_path = "stencil_" + std::to_string(frame_nr) + ".raw";
-	const std::string col_path = "frame_" + std::to_string(frame_nr) + ".raw";
-	const std::string sem_string = "sem_map_" + std::to_string(frame_nr) + ".bmp";
-	// logging, only at first frame,  in order to avoid spamming the programm
-	//if (frame_nr == 0) {
-	//	FILE* log = fopen("GTANativePlugin.log", "a");
-	//	fprintf(log, "Saving files; Depth path is %s\n", depth_path);
-	//	fprintf(log, "Saving files; Stencil path is %s\n", stenc_path);
-	//	fprintf(log, "Saving files; Color path is %s\n", col_path);
-	//	fclose(log);
-	//}
-	// save Files
+	const std::string sem_string =out_dir + "\\sem_map_" + std::to_string(frame_nr) + ".bmp";
 
-	std::string out = annotator->getOutputPath();
+	std::wstring ws;
+	StringToWString(ws, sem_string);
 	// auto f = fopen((out + "\\" + depth_path).c_str(), "w");
-	void* stenc_buf;
+
 	/*int size = export_get_depth_buffer(&buf);
 	fwrite(buf, 1, size, f);
 	fclose(f)*/;
 	/*f = fopen((out + "\\" + stenc_path).c_str(), "w");*/
+	void* stenc_buf;
 	int size = export_get_stencil_buffer(&stenc_buf);
-	exportStencilToBitmap(&stenc_buf,size,out + "\\" + sem_string);
+
+	if (window_width * window_height != size) {
+
+		int res_x, res_y;
+		GRAPHICS::_GET_SCREEN_ACTIVE_RESOLUTION(&res_x, &res_y);
+
+		if (size == res_y * res_x) {
+			//fprintf(log, "WARNING: window height and width are not equal to number of elements in semantic mask due to Screen Resolution! Saving downsampled mask.\n");
+			BYTE* buf = new BYTE[size];
+			memcpy(buf,stenc_buf,size);
+			Gdiplus::Bitmap image(res_x, res_y, res_x, PixelFormat8bppIndexed, buf);
+			//fprintf(log, "Status after image instantiating is %d\n", image.GetLastStatus());
+
+			const auto bmp_id = annotator->getCLSID();
+			image.Save(ws.c_str(), &bmp_id, NULL);
+
+			//fprintf(log, "Status after image saving is %d\n", image.GetLastStatus());
+			delete[] buf;
+		}
+		/*else {
+		fprintf(log, "WARNING: window height and width are not equal to number of elements in semantic mask due to Screen Resolution! Not saving semantic mask.\n");
+		}*/
+		//fclose(log);
+
+		// make it point somewhere safe
+		stenc_buf = nullptr;
+	}
 	
 	/*fwrite(buf, 1, size, f);
 	fclose(f);*/
@@ -273,6 +297,15 @@ inline void saveBuffersAndAnnotations(const int frame_nr)
 	//fwrite(buf, 1, size, f);
 	//fclose(f);
 	//buf = nullptr;
+
+	BYTE* buf = new BYTE[size];
+	memcpy(buf, stenc_buf, size);
+
+	Gdiplus::Bitmap image(window_width, window_height, window_width, PixelFormat8bppIndexed, buf);
+	const auto bmp_id = annotator->getCLSID();
+	image.Save(ws.c_str(), &bmp_id, NULL);
+	delete[] buf;
+
 	stenc_buf = nullptr;
 }
 
@@ -339,23 +372,23 @@ void draw_hook_impl()
 	fprintf(f, "Draw Call\n");
 	fclose(f);
 }
-//void draw_indexed_hook(ID3D11DeviceContext* self, UINT indexCount, UINT startLoc, UINT baseLoc) {
-//	auto origMethod = reinterpret_cast<decltype(draw_indexed_hook)*>(orig<drawIndexedOffset, ID3D11DeviceContext>);
-//	HRESULT hr;
-//	ComPtr<ID3D11VertexShader> vs;
-//	self->VSGetShader(&vs, nullptr, nullptr);
-//	ComPtr<ID3D11Buffer> buf;
-//	ComPtr<ID3D11Device> dev;
-//	self->GetDevice(&dev);
-//	self->VSGetConstantBuffers(1, 1, &buf);
-//	if (buf != nullptr && draw_indexed_count == 1000) {
-//		lastConstants = buf;
-//		ExtractConstantBuffer(dev.Get(), self, buf.Get());
-//	}
-//	
-//	draw_indexed_count += 1;
-//	origMethod(self, indexCount, startLoc, baseLoc);
-//}
+void draw_indexed_hook(ID3D11DeviceContext* self, UINT indexCount, UINT startLoc, UINT baseLoc) {
+	auto origMethod = reinterpret_cast<decltype(draw_indexed_hook)*>(orig<drawIndexedOffset, ID3D11DeviceContext>);
+	HRESULT hr;
+	ComPtr<ID3D11VertexShader> vs;
+	self->VSGetShader(&vs, nullptr, nullptr);
+	ComPtr<ID3D11Buffer> buf;
+	ComPtr<ID3D11Device> dev;
+	self->GetDevice(&dev);
+	self->VSGetConstantBuffers(1, 1, &buf);
+	if (buf != nullptr && draw_indexed_count == 1000) {
+		lastConstants = buf;
+		ExtractConstantBuffer(dev.Get(), self, buf.Get());
+	}
+	
+	draw_indexed_count += 1;
+	origMethod(self, indexCount, startLoc, baseLoc);
+}
 void clear_render_target_view_hook(ID3D11DeviceContext* self, ID3D11RenderTargetView* rtv, float color[4])
 {
 	auto origMethod = reinterpret_cast<void (*)(ID3D11DeviceContext*, ID3D11RenderTargetView*, float[4])>(orig<50, ID3D11DeviceContext>);
@@ -454,14 +487,14 @@ void presentCallback(void* chain)
 	//hook_function<drawIndexedOffset>(ctx.Get(), &draw_indexed_hook);
 	//hook_function<50>(ctx.Get(), &clear_render_target_view_hook);
 	hook_function<clearDepthStencilViewOffset>(ctx.Get(), &clear_depth_stencil_view_hook);
-	if (f == nullptr) throw std::system_error(errno, std::system_category());
+	//if (f == nullptr) throw std::system_error(errno, std::system_category());
 	
 	ComPtr<ID3D11Resource> depthres;
-	ComPtr<ID3D11Resource> colorres;
+	/*ComPtr<ID3D11Resource> colorres;
 	ctx->OMGetRenderTargets(1, &lastRtv, nullptr);
 	last_capture_color = system_clock::now();
-	lastRtv->GetResource(&colorres);
-	ExtractColorBuffer(dev.Get(), ctx.Get(), colorres.Get());
+	lastRtv->GetResource(&colorres);*/
+	//ExtractColorBuffer(dev.Get(), ctx.Get(), colorres.Get());
 
 	//if (recording) {
 		// datasatAnnnotator extracts the files to respective repo
@@ -471,7 +504,7 @@ void presentCallback(void* chain)
 
 		// store buffers into the same repo
 		/*if(frame_nr>=0) saveBuffersAndAnnotations(frame_nr);*/
-		if (mapshot) saveBuffersAndAnnotations(n_frame);
+		/*if (mapshot) saveBuffersAndAnnotations(n_frame);*/
 
 		//if (frame_nr >= annotator->getMaxFrames()) {
 		//	// stop recording
@@ -503,10 +536,10 @@ void reactionOnKeyboard() {
 				while (n_frame < annotator->getMaxFrames()) {
 					n_frame = annotator->update();
 					/*n_frame = frame_nr;*/
-					mapshot = true;
+					//toggleMapshot(true);
 					WAIT(0);
 				}
-				mapshot = false;
+				/*toggleMapshot(false);*/
 				reset = true;
 				WAIT(200);
 				annotator->resetStates();
@@ -560,9 +593,44 @@ void reactionOnKeyboard() {
 	
 }
 
+void record() {
+	while (true) {
+	annotator->loadScenario();
+	Sleep(100);
+	n_frame = 0;
+	const auto out = annotator->getOutputPath();
+	const auto window_width = annotator->getWindowWidth();
+	const auto window_height = annotator->getWindowHeight();
+	/*const int n_frames = annotator->getMaxFrames();*/
+	while (n_frame < annotator->getMaxFrames()) {
+		n_frame = annotator->update();
+		/*n_frame = frame_nr;*/#
+
+		saveBuffersAndAnnotations(n_frame,window_width,window_height,out);
+		//toggleMapshot(true);
+		WAIT(0);
+	}
+	//toggleMapshot(false);
+	reset = true;
+	WAIT(200);
+	annotator->resetStates();
+	WAIT(5000);
+	}
+}
+
+void main() {
+	while (true) {
+		if (IsKeyJustUp(VK_F3)) {
+			record();
+		}
+		WAIT(0);
+	}
+}
+
 void scriptMain() {
 	
 	srand(GetTickCount());
-	reactionOnKeyboard();
+	main();
+	/*reactionOnKeyboard();*/
 	
 }

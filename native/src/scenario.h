@@ -27,7 +27,7 @@
 // set FPS to one in order to have signifikant changings during recorded frames
 //constexpr int FPS = 30;
 
-constexpr int max_number_of_peds = 1024;					// size of the pedestrians array
+constexpr std::size_t max_number_of_peds = 1024;					// size of the pedestrians array
 constexpr int number_of_joints = 21;							// size of the joint_ID subset
 //constexpr int max_wpeds = 512;
 
@@ -136,7 +136,7 @@ public:
 	void loadScenario();
 	void resetStates();
 	CLSID getCLSID() const { return this->bmpClsid; }
-	CLSID getCLSIDPNG() const { return this->pngClsid; }
+	//CLSID getCLSIDPNG() const { return this->pngClsid; }
 	int getWindowWidth() const{ return this->windowWidth; }
 	int getWindowHeight() const{ return this->windowHeight; }
 	bool recordAllSeqs() const { return this->RECORD_ALL_SEQS; }
@@ -166,7 +166,7 @@ private:
 	Ped ped_spawned[max_number_of_peds];
 	int n_peds;
 	std::vector<const char*> bad_scenarios; // 36
-	//int ped_with_cam;
+	int ped_with_cam;
 	std::string file_scenarios_path;
 	
 	std::vector<Ped> overall_peds = {};
@@ -209,7 +209,7 @@ private:
 	void registerParams();
 	void get_2D_from_3D(Vector3 v, float *x, float *y);														// function used to capture frames internally, then private
 	void setCameraFixed(Vector3 coords, Vector3 rot, float cam_z, int fov);
-	//void setCameraMoving(Vector3 A, Vector3 B, Vector3 C, int fov);							// function used to set the camera stuff										// function used to spawn pedestrians at the beginning of the scenario
+	void setCameraMoving(Vector3 A, Vector3 B, Vector3 C, int fov);							// function used to set the camera stuff										// function used to spawn pedestrians at the beginning of the scenario
 	Vector3 teleportPlayer(Vector3 pos);													// function used to teleport the player to a random position returned by the function
 	void spawn_peds_flow(Vector3 pos, Vector3 goFrom, Vector3 goTo, int npeds, int ngroup, int task_time, int type, int radius, 
 		int min_lenght, int time_between_walks, int spawning_radius, float speed);

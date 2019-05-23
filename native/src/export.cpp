@@ -56,13 +56,15 @@ static void unpack_depth(ID3D11Device* dev, ID3D11DeviceContext* ctx, ID3D11Reso
 	if (hr != S_OK) throw std::system_error(hr, std::system_category());
 	if (dst.size() != src_desc.Height * src_desc.Width * 4) dst = vector<unsigned char>(src_desc.Height * src_desc.Width * 4);
 	if (stencil.size() != src_desc.Height * src_desc.Width) stencil = vector<unsigned char>(src_desc.Height * src_desc.Width);
-	FILE* log = fopen("GTANativePlugin.log", "a");
-	fprintf(log, "Source width is %zu; source height is %zu.\n",src_desc.Width,src_desc.Height);
-	fprintf(log, "Stencil size is %zu\n", stencil.size());
-	fprintf(log, "screenResX is %d; screenResY is %d.\n", screenResX, screenResY);
-	fclose(log);
+	//FILE* log = fopen("GTANativePlugin.log", "a");
+	//fprintf(log, "Source width is %zu; source height is %zu.\n",src_desc.Width,src_desc.Height);
+	//fprintf(log, "Stencil size is %zu\n", stencil.size());
+	//fprintf(log, "screenResX is %d; screenResY is %d.\n", screenResX, screenResY);
+	//fclose(log);
 	/*if (screenResX >= src_desc.Width)
 	{*/
+	/*std::unique_lock<std::mutex> lock(copy_mtx);
+	copy_cv.wait(lock);*/
 		for (int x = 0; x < src_desc.Width; ++x)
 		{
 			for (int y = 0; y < src_desc.Height; ++y)
@@ -132,17 +134,17 @@ static ComPtr<ID3D11Texture2D> CreateTexHelper(ID3D11Device* dev, DXGI_FORMAT fm
 	return result;
 
 }
-//static ComPtr<ID3D11Buffer> CreateStagingBuffer(ID3D11Device* dev, int size) {
-//	ComPtr<ID3D11Buffer> result;
-//	D3D11_BUFFER_DESC desc = { 0 };
-//	desc.BindFlags = 0;
-//	desc.ByteWidth = size;
-//	desc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
-//	desc.MiscFlags = 0;
-//	desc.Usage = D3D11_USAGE_STAGING;
-//	dev->CreateBuffer(&desc, nullptr, &result);
-//	return result;
-//}
+static ComPtr<ID3D11Buffer> CreateStagingBuffer(ID3D11Device* dev, int size) {
+	ComPtr<ID3D11Buffer> result;
+	D3D11_BUFFER_DESC desc = { 0 };
+	desc.BindFlags = 0;
+	desc.ByteWidth = size;
+	desc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
+	desc.MiscFlags = 0;
+	desc.Usage = D3D11_USAGE_STAGING;
+	dev->CreateBuffer(&desc, nullptr, &result);
+	return result;
+}
 
 void CreateTextureIfNeeded(ID3D11Device* dev, ID3D11Resource* for_res, ComPtr<ID3D11Texture2D>* tex_target)
 {
@@ -223,10 +225,15 @@ void ExtractDepthBuffer(ID3D11Device* dev, ID3D11DeviceContext* ctx, ID3D11Resou
 {
 	lastDev = dev;
 	lastCtx = ctx;
-	CreateTextureIfNeeded(dev, res, &depthRes);
-	ctx->CopyResource(depthRes.Get(), res);
-	last_depth_time = std::chrono::high_resolution_clock::now();
-	//unpack_depth(dev, ctx, res, depthBuf, stencilBuf);
+	/*{
+		std::lock_guard<std::mutex> lock(copy_mtx);*/
+		CreateTextureIfNeeded(dev, res, &depthRes);
+		ctx->CopyResource(depthRes.Get(), res);
+		last_depth_time = std::chrono::high_resolution_clock::now();
+	//}
+	//
+	////unpack_depth(dev, ctx, res, depthBuf, stencilBuf);
+	//copy_cv.notify_all();
 }
 
 void ExtractColorBuffer(ID3D11Device* dev, ID3D11DeviceContext* ctx, ID3D11Resource* tex)
@@ -240,18 +247,26 @@ void ExtractColorBuffer(ID3D11Device* dev, ID3D11DeviceContext* ctx, ID3D11Resou
 	
 }
 
-//void ExtractConstantBuffer(ID3D11Device* dev, ID3D11DeviceContext* ctx, ID3D11Buffer* buf) {
-//	lastDev = dev;
-//	lastCtx = ctx;
-//	D3D11_BUFFER_DESC desc = { 0 };
-//	buf->GetDesc(&desc);
-//	if (constantBuf == nullptr) {
-//		constantBuf = CreateStagingBuffer(dev, desc.ByteWidth);
-//	}
-//	ctx->CopyResource(constantBuf.Get(), buf);
-//	last_constant_time = high_resolution_clock::now();
-//	
-//}
+void ExtractConstantBuffer(ID3D11Device* dev, ID3D11DeviceContext* ctx, ID3D11Buffer* buf) {
+	lastDev = dev;
+	lastCtx = ctx;
+	D3D11_BUFFER_DESC desc = { 0 };
+	buf->GetDesc(&desc);
+	if (constantBuf == nullptr) {
+		constantBuf = CreateStagingBuffer(dev, desc.ByteWidth);
+	}
+	ctx->CopyResource(constantBuf.Get(), buf);
+	last_constant_time = high_resolution_clock::now();
+	
+}
+
+int export_get_stencil_buffer(void** buf)
+{
+	if (lastDev == nullptr || lastCtx == nullptr || depthRes == nullptr) return -1;
+	unpack_depth(lastDev.Get(), lastCtx.Get(), depthRes.Get(), depthBuf, stencilBuf);
+	*buf = &stencilBuf[0];
+	return stencilBuf.size();
+}
 
 extern "C" {
 	__declspec(dllexport) int export_get_depth_buffer(void** buf)
@@ -268,13 +283,13 @@ extern "C" {
 		*buf = &colorBuf[0];
 		return colorBuf.size();
 	}
-	__declspec(dllexport) int export_get_stencil_buffer(void** buf)
+	/*__declspec(dllexport) int export_get_stencil_buffer(void** buf)
 	{
 		if (lastDev == nullptr || lastCtx == nullptr || depthRes == nullptr) return -1;
 		unpack_depth(lastDev.Get(), lastCtx.Get(), depthRes.Get(), depthBuf, stencilBuf);
 		*buf = &stencilBuf[0];
 		return stencilBuf.size();
-	}
+	}*/
 
 	__declspec(dllexport) long long int export_get_last_depth_time() {
 		return duration_cast<milliseconds>(last_depth_time.time_since_epoch()).count();

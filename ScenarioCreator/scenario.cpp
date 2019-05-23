@@ -888,7 +888,7 @@ void ScenarioCreator::camera_menu()
 			sprintf_s(lines[4], "MOVING		~g~ON");
 		else
 			sprintf_s(lines[4], "MOVING		~r~OFF");
-
+	
 		sprintf_s(lines[5], "A	~y~[ x=%0.1f y=%0.1f ]", A.x, A.y);
 		sprintf_s(lines[6], "B	~y~[ x=%0.1f y=%0.1f ]", B.x, B.y);
 		sprintf_s(lines[7], "C	~y~[ x=%0.1f y=%0.1f ]", C.x, C.y);

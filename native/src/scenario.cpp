@@ -292,134 +292,126 @@ void DatasetAnnotator::addPed(const Ped ped) {
 
 int DatasetAnnotator::update()
 {
-	//try {
-	//	/*if (!log_file.is_open()) {
-	//		log_file.open(current_output_path + "\\log.txt");
-	//	}*/
-	//}
-	//catch (const std::ios_base::failure& ex) {
-
-	//}
-	//
 	float delay = ((float)(std::clock() - lastRecordingTime)) / CLOCKS_PER_SEC;
-	if (delay >= recordingPeriod)
-		lastRecordingTime = std::clock();
-	else
-		return nsample;
-	/*float delay = (static_cast<float>(std::clock() - lastRecordingTime)) / CLOCKS_PER_SEC;
 	if (delay >= recordingPeriod) {
-		log_file << "Resetting last recording time; Delay is " << delay << "; recordingPeriod is " << recordingPeriod << "\n";
 		lastRecordingTime = std::clock();
-
+		log_file << "Entering the update method. delay is " << delay << "\n";
+	}else {
+		log_file << "Delay is smaller than recording Period, namley " << delay << "\n";
+		return nsample;
 	}
-	else {
-		log_file << "Delay smaller than recordingPeriod! Returning nsample without doing anything; Delay is " << delay << "; recordingPeriod is " << recordingPeriod << "\n";
-		return -1;
-	}*/
 		
-	GAMEPLAY::SET_TIME_SCALE(1.0f / (float)TIME_FACTOR);
 
+	GAMEPLAY::SET_TIME_SCALE(1.0f / (float)TIME_FACTOR);
 	PED::SET_PED_DENSITY_MULTIPLIER_THIS_FRAME(1.0);
 
 	//ENTITY::SET_ENTITY_COORDS_NO_OFFSET(PLAYER::PLAYER_PED_ID(), cam_coords.x, cam_coords.y, cam_coords.z, 0, 0, 0);
+	//nsample++;
+	//return nsample;
 
-
-	
-	//Ped peds[max_number_of_peds];// array of pedestrians
-	std::vector<Ped> peds;
-	peds.reserve(max_number_of_peds);
+	std::vector<Ped> peds(max_number_of_peds);											// array of pedestrians
 	int number_of_peds = worldGetAllPeds(&peds[0], max_number_of_peds);			// number of pedestrians taken
-	//log_file << "The number of peds in update method is " << number_of_peds << "\n";
-	float C;	
+/*	float C;*/																// coefficient used to adjust the size of rectangles drawn around the joints
 
-	// continue here
-	for (int i = 0; i < number_of_peds; i++) {
-		if (!PED::IS_PED_A_PLAYER(peds[i])/* && peds[i] != ped_with_cam*/) {
-			ENTITY::SET_ENTITY_COLLISION(peds[i], TRUE, TRUE);
-			ENTITY::SET_ENTITY_VISIBLE(peds[i], TRUE, FALSE);
-			ENTITY::SET_ENTITY_ALPHA(peds[i], 255, FALSE);
-			ENTITY::SET_ENTITY_CAN_BE_DAMAGED(peds[i], FALSE);
+	// remove pedetstrians that whose pose shall not be extracted
+	peds.erase(std::remove_if(peds.begin(), peds.end(), [](const auto& p) {return (PED::IS_PED_IN_ANY_VEHICLE(p, TRUE) || PED::IS_PED_DEAD_OR_DYING(p, TRUE)) || PED::IS_PED_A_PLAYER(p) || (!ENTITY::IS_ENTITY_ON_SCREEN(p)) || (!PED::IS_PED_HUMAN(p)) || (!ENTITY::IS_ENTITY_VISIBLE(p)); }), peds.end());
+
+	//remove pedestrians that are too far away
+	peds.erase(std::remove_if(peds.begin(), peds.end(), [this](const auto& p) {
+		Vector3 ped_coords = ENTITY::GET_ENTITY_COORDS(p, TRUE);
+		return GAMEPLAY::GET_DISTANCE_BETWEEN_COORDS(
+			cam_coords.x, cam_coords.y, cam_coords.z,
+			ped_coords.x, ped_coords.y, ped_coords.z, 1
+		) >= MAX_PED_TO_CAM_DISTANCE;
+	}), peds.end());
+
+	for (auto& p : peds) {
+		if (!PED::IS_PED_A_PLAYER(p) && p != ped_with_cam) {
+			ENTITY::SET_ENTITY_COLLISION(p, TRUE, TRUE);
+			ENTITY::SET_ENTITY_VISIBLE(p, TRUE, FALSE);
+			ENTITY::SET_ENTITY_ALPHA(p, 255, FALSE);
+			ENTITY::SET_ENTITY_CAN_BE_DAMAGED(p, FALSE);
 		}
-		else if (PED::IS_PED_A_PLAYER(peds[i]))
+		else if (PED::IS_PED_A_PLAYER(p))
 		{
 			if (moving) {
-				ENTITY::SET_ENTITY_COLLISION(peds[i], TRUE, TRUE);
-				ENTITY::SET_ENTITY_VISIBLE(peds[i], FALSE, FALSE);
-				ENTITY::SET_ENTITY_ALPHA(peds[i], 0, FALSE);
-				ENTITY::SET_ENTITY_CAN_BE_DAMAGED(peds[i], FALSE);
+				ENTITY::SET_ENTITY_COLLISION(p, TRUE, TRUE);
+				ENTITY::SET_ENTITY_VISIBLE(p, FALSE, FALSE);
+				ENTITY::SET_ENTITY_ALPHA(p, 0, FALSE);
+				ENTITY::SET_ENTITY_CAN_BE_DAMAGED(p, FALSE);
 			}
 			else {
-				ENTITY::SET_ENTITY_COLLISION(peds[i], FALSE, TRUE);
-				ENTITY::SET_ENTITY_VISIBLE(peds[i], FALSE, FALSE);
-				ENTITY::SET_ENTITY_ALPHA(peds[i], 0, FALSE);
-				ENTITY::SET_ENTITY_CAN_BE_DAMAGED(peds[i], FALSE);
+				ENTITY::SET_ENTITY_COLLISION(p, FALSE, TRUE);
+				ENTITY::SET_ENTITY_VISIBLE(p, FALSE, FALSE);
+				ENTITY::SET_ENTITY_ALPHA(p, 0, FALSE);
+				ENTITY::SET_ENTITY_CAN_BE_DAMAGED(p, FALSE);
 			}
-			
+
 		}
-		/*else if (peds[i] == ped_with_cam) {
+		else if (p == ped_with_cam) {
 			ENTITY::SET_ENTITY_COLLISION(ped_with_cam, TRUE, TRUE);
 			ENTITY::SET_ENTITY_VISIBLE(ped_with_cam, FALSE, FALSE);
 			ENTITY::SET_ENTITY_ALPHA(ped_with_cam, 0, FALSE);
 			ENTITY::SET_ENTITY_CAN_BE_DAMAGED(ped_with_cam, FALSE);
-		}*/
+		}
 	}
 
-	//nsample++;
-	//return nsample;// coefficient used to adjust the size of rectangles drawn around the joints
-	
-	//if (moving) {
-	//	this->cam_coords = CAM::GET_CAM_COORD(camera);
-	//	Vector3 ped_with_cam_rot = ENTITY::GET_ENTITY_ROTATION(this->ped_with_cam, 2);
-	//	CAM::SET_CAM_ROT(camera, ped_with_cam_rot.x, ped_with_cam_rot.y, ped_with_cam_rot.z, 2);
-	//	this->cam_rot = CAM::GET_CAM_ROT(camera, 2);
-	//	//this->cam_rot = ped_with_cam_rot;
-	//}
+
+	if (moving) {
+		this->cam_coords = CAM::GET_CAM_COORD(camera);
+		Vector3 ped_with_cam_rot = ENTITY::GET_ENTITY_ROTATION(this->ped_with_cam, 2);
+		CAM::SET_CAM_ROT(camera, ped_with_cam_rot.x, ped_with_cam_rot.y, ped_with_cam_rot.z, 2);
+		this->cam_rot = CAM::GET_CAM_ROT(camera, 2);
+		//this->cam_rot = ped_with_cam_rot;
+	}
+
+
 
 	//this->cam_coords = CAM::GET_GAMEPLAY_CAM_COORD();
 	//this->cam_rot = CAM::GET_GAMEPLAY_CAM_ROT(2);
 	//this->fov = CAM::GET_GAMEPLAY_CAM_FOV();
 
 	// scan all the pedestrians taken
-	for (int i = 0; i < number_of_peds; i++){
+	for (const auto& p : peds) {
 
-		// ignore pedestrians in vehicles or dead pedestrians
-		if(PED::IS_PED_IN_ANY_VEHICLE(peds[i], TRUE) || PED::IS_PED_DEAD_OR_DYING(peds[i], TRUE)) {
-			//log_file << "veicolo o morto\n";
-			continue;
-		}
-		// ignore player
-		else if (PED::IS_PED_A_PLAYER(peds[i])) {
-			//log_file << "player\n";
-			continue;
-		}
-		else if (!ENTITY::IS_ENTITY_ON_SCREEN(peds[i])) {
-			//log_file << "non su schermo\n";
-			continue;
-		}
-		else if (!PED::IS_PED_HUMAN(peds[i])) {
-			//log_file << "non umano\n";
-			continue;
-		}
-		else if (!ENTITY::IS_ENTITY_VISIBLE(peds[i])) {
-			//log_file << "invisibile\n";
-			continue;
-		}
+		//// ignore pedestrians in vehicles or dead pedestrians
+		//if (PED::IS_PED_IN_ANY_VEHICLE(p, TRUE) || PED::IS_PED_DEAD_OR_DYING(p, TRUE)) {
+		//	//log_file << "veicolo o morto\n";
+		//	continue;
+		//}
+		//// ignore player
+		//else if (PED::IS_PED_A_PLAYER(p)) {
+		//	//log_file << "player\n";
+		//	continue;
+		//}
+		//else if (!ENTITY::IS_ENTITY_ON_SCREEN(p)) {
+		//	//log_file << "non su schermo\n";
+		//	continue;
+		//}
+		//else if (!PED::IS_PED_HUMAN(p)) {
+		//	//log_file << "non umano\n";
+		//	continue;
+		//}
+		//else if (!ENTITY::IS_ENTITY_VISIBLE(p)) {
+		//	//log_file << "invisibile\n";
+		//	continue;
+		//}
 
-		Vector3 ped_coords = ENTITY::GET_ENTITY_COORDS(peds[i], TRUE);
+		/*Vector3 ped_coords = ENTITY::GET_ENTITY_COORDS(p, TRUE);
 		float ped2cam_distance = GAMEPLAY::GET_DISTANCE_BETWEEN_COORDS(
-			cam_coords.x, cam_coords.y, cam_coords.z, 
+			cam_coords.x, cam_coords.y, cam_coords.z,
 			ped_coords.x, ped_coords.y, ped_coords.z, 1
 		);
 
-		if (ped2cam_distance < MAX_PED_TO_CAM_DISTANCE) {
-			
+		if (ped2cam_distance < MAX_PED_TO_CAM_DISTANCE) {*/
+
 			// for each pedestrians scan all the joint_ID we choose on the subset
 			for (int n = -1; n < number_of_joints; n++) {
 
 				Vector3 joint_coords;
 				if (n == -1) {
-					Vector3 head_coords = ENTITY::GET_WORLD_POSITION_OF_ENTITY_BONE(peds[i], PED::GET_PED_BONE_INDEX(peds[i], joint_int_codes[0]));
-					Vector3 neck_coords = ENTITY::GET_WORLD_POSITION_OF_ENTITY_BONE(peds[i], PED::GET_PED_BONE_INDEX(peds[i], joint_int_codes[1]));
+					Vector3 head_coords = ENTITY::GET_WORLD_POSITION_OF_ENTITY_BONE(p, PED::GET_PED_BONE_INDEX(p, joint_int_codes[0]));
+					Vector3 neck_coords = ENTITY::GET_WORLD_POSITION_OF_ENTITY_BONE(p, PED::GET_PED_BONE_INDEX(p, joint_int_codes[1]));
 					float head_neck_norm = GAMEPLAY::GET_DISTANCE_BETWEEN_COORDS(neck_coords.x, neck_coords.y, neck_coords.z, head_coords.x, head_coords.y, head_coords.z, 1);
 					float dx = (head_coords.x - neck_coords.x) / head_neck_norm;
 					float dy = (head_coords.y - neck_coords.y) / head_neck_norm;
@@ -429,12 +421,12 @@ int DatasetAnnotator::update()
 					joint_coords.y = head_coords.y + head_neck_norm * dy;
 					joint_coords.z = head_coords.z + head_neck_norm * dz;
 				}
-				else 
-					joint_coords = ENTITY::GET_WORLD_POSITION_OF_ENTITY_BONE(peds[i], PED::GET_PED_BONE_INDEX(peds[i], joint_int_codes[n]));
-				
+				else
+					joint_coords = ENTITY::GET_WORLD_POSITION_OF_ENTITY_BONE(p, PED::GET_PED_BONE_INDEX(p, joint_int_codes[n]));
+
 				// finding the versor (dx, dy, dz) pointing from the joint to the cam
 				float joint2cam_distance = GAMEPLAY::GET_DISTANCE_BETWEEN_COORDS(
-					joint_coords.x, joint_coords.y, joint_coords.z, 
+					joint_coords.x, joint_coords.y, joint_coords.z,
 					cam_coords.x, cam_coords.y, cam_coords.z, 1
 				);
 				float dx = (cam_coords.x - joint_coords.x) / joint2cam_distance;
@@ -450,12 +442,12 @@ int DatasetAnnotator::update()
 				int ray_ped_occlusion = WORLDPROBE::_CAST_RAY_POINT_TO_POINT(
 					joint_coords.x, joint_coords.y, joint_coords.z,
 					cam_coords.x, cam_coords.y, cam_coords.z,
-					8, peds[i], 7
+					8, p, 7
 				);
 				WORLDPROBE::_GET_RAYCAST_RESULT(ray_ped_occlusion, &occlusion_ped, &end_coords1, &surface_norm1, &entityHit1);
 
-				/*if (entityHit1 == ped_with_cam)
-					occlusion_ped = FALSE;*/
+				if (entityHit1 == ped_with_cam)
+					occlusion_ped = FALSE;
 
 
 				// ray #2: from joint to camera (without ignoring the pedestrian to whom the joint belongs and intersecting only pedestrian (8))
@@ -465,13 +457,13 @@ int DatasetAnnotator::update()
 				Entity entityHit2 = 0;
 				int ray_joint2cam = WORLDPROBE::_CAST_RAY_POINT_TO_POINT(
 					joint_coords.x + 0.1f*dx, joint_coords.y + 0.1f*dy, joint_coords.z + 0.1f*dz,
-					cam_coords.x, cam_coords.y, cam_coords.z, 
+					cam_coords.x, cam_coords.y, cam_coords.z,
 					8, 0, 7
 				);
 				WORLDPROBE::_GET_RAYCAST_RESULT(ray_joint2cam, &occlusion_self, &endCoords2, &surfaceNormal2, &entityHit2);
 
-				/*if (entityHit2 == ped_with_cam)
-					occlusion_self = FALSE;*/
+				if (entityHit2 == ped_with_cam)
+					occlusion_self = FALSE;
 
 
 				// ray #3: from camera to joint (ignoring the pedestrian to whom the joint belongs and intersecting everything but peds (4 and 8))
@@ -482,57 +474,56 @@ int DatasetAnnotator::update()
 				int ray_joint2cam_obj = WORLDPROBE::_CAST_RAY_POINT_TO_POINT(
 					cam_coords.x, cam_coords.y, cam_coords.z,
 					joint_coords.x, joint_coords.y, joint_coords.z,
-					(~0 ^ (8|4)), peds[i], 7
-					);
+					(~0 ^ (8 | 4)), p, 7
+				);
 				WORLDPROBE::_GET_RAYCAST_RESULT(ray_joint2cam_obj, &occlusion_object, &endCoords3, &surfaceNormal3, &entityHit3);
 
-				
+
 				BOOL occluded = occlusion_ped || occlusion_object;
 
 
-				if (DEBUG_MODE) {
-					float x, y;
-					get_2D_from_3D(joint_coords, &x, &y);
+				//if (DEBUG_MODE) {
+				//	float x, y;
+				//	get_2D_from_3D(joint_coords, &x, &y);
 
-					// C calculation based on distance between the current pedestrians and the camera
-					if (ped2cam_distance > 6)
-						C = (float)(1.5 / cbrt(ped2cam_distance));
-					else
-						C = 1;
+				//	// C calculation based on distance between the current pedestrians and the camera
+				//	if (ped2cam_distance > 6)
+				//		C = (float)(1.5 / cbrt(ped2cam_distance));
+				//	else
+				//		C = 1;
 
-					if (occluded) {
-						/*GRAPHICS::DRAW_BOX(
-						joint_coords.x, joint_coords.y, joint_coords.z,
-						joint_coords.x + 0.1, joint_coords.y + 0.1, joint_coords.z + 0.1,
-						255, 0, 64, 175
-						);*/
-						GRAPHICS::DRAW_RECT(x, y, 0.005f*C, 0.005f*C, 255, 0, 64, 175);
-					}
-					else if (occlusion_self) {
-						/*GRAPHICS::DRAW_BOX(
-							joint_coords.x, joint_coords.y, joint_coords.z,
-							joint_coords.x + 0.1, joint_coords.y + 0.1, joint_coords.z + 0.1,
-							255, 128, 16, 175
-							);*/
-						GRAPHICS::DRAW_RECT(x, y, 0.005f*C, 0.005f*C, 255, 128, 16, 175);
-					}
-					else {
-						/*GRAPHICS::DRAW_BOX(
-							joint_coords.x, joint_coords.y, joint_coords.z,
-							joint_coords.x + 0.1, joint_coords.y + 0.1, joint_coords.z + 0.1,
-							0, 255, 64, 175
-							);*/
-						GRAPHICS::DRAW_RECT(x, y, 0.005f*C, 0.005f*C, 0, 255, 64, 175);
-					}
-				}
+				//	if (occluded) {
+				//		/*GRAPHICS::DRAW_BOX(
+				//		joint_coords.x, joint_coords.y, joint_coords.z,
+				//		joint_coords.x + 0.1, joint_coords.y + 0.1, joint_coords.z + 0.1,
+				//		255, 0, 64, 175
+				//		);*/
+				//		GRAPHICS::DRAW_RECT(x, y, 0.005f*C, 0.005f*C, 255, 0, 64, 175);
+				//	}
+				//	else if (occlusion_self) {
+				//		/*GRAPHICS::DRAW_BOX(
+				//		joint_coords.x, joint_coords.y, joint_coords.z,
+				//		joint_coords.x + 0.1, joint_coords.y + 0.1, joint_coords.z + 0.1,
+				//		255, 128, 16, 175
+				//		);*/
+				//		GRAPHICS::DRAW_RECT(x, y, 0.005f*C, 0.005f*C, 255, 128, 16, 175);
+				//	}
+				//	else {
+				//		/*GRAPHICS::DRAW_BOX(
+				//		joint_coords.x, joint_coords.y, joint_coords.z,
+				//		joint_coords.x + 0.1, joint_coords.y + 0.1, joint_coords.z + 0.1,
+				//		0, 255, 64, 175
+				//		);*/
+				//		GRAPHICS::DRAW_RECT(x, y, 0.005f*C, 0.005f*C, 0, 255, 64, 175);
+				//	}
+				//}
 				float x, y;
 				get_2D_from_3D(joint_coords, &x, &y);
-				// FIXME add offset x and y here, if required, but check this first
 				x = x * SCREEN_WIDTH;
 				y = y * SCREEN_HEIGHT;
 				coords_file << nsample;					  // frame number
-				coords_file << "," << peds[i];			  // pedestrian ID
-				coords_file << "," << n+1;				  // joint type
+				coords_file << "," << p;			  // pedestrian ID
+				coords_file << "," << n + 1;				  // joint type
 				coords_file << "," << x;				  // camera 2D x [px]
 				coords_file << "," << y;	              // camera 2D y [px]
 				coords_file << "," << joint_coords.x;	  // joint 3D x [m]
@@ -549,19 +540,10 @@ int DatasetAnnotator::update()
 				coords_file << "," << fov;				  // camera FOV  [degrees]
 				coords_file << "\n";
 			}
-		}
+		//}
 	}
-	// increase nsample by one to make sure that patches are aligned
 	nsample++;
 	save_frame();
-	//if (nsample == max_samples) {
-	//	for (int i = 0; i < nwPeds; i++) {
-	//		PED::DELETE_PED(&wPeds[i].ped);
-	//	}
-	//	for (int i = 0; i < nwPeds_scenario; i++) {
-	//		PED::DELETE_PED(&wPeds_scenario[i].ped);
-	//	}
-	//}
 
 	return nsample;
 }
@@ -639,7 +621,7 @@ void DatasetAnnotator::save_frame() {
 	/*StringToWString(ws, output_path);*/
 	std::wstring ws(current_output_path.begin(), current_output_path.end());
 
-	image.Save((ws + L"\\" + std::to_wstring(nsample) + L".jpeg").c_str(), &pngClsid, NULL);
+	image.Save((ws + L"\\" + std::to_wstring(nsample) + L".png").c_str(), &pngClsid, NULL);
 }
 
 //void DatasetAnnotator::save_frame() {
@@ -708,56 +690,56 @@ void DatasetAnnotator::save_frame() {
 //	
 //}
 
-//void DatasetAnnotator::setCameraMoving(Vector3 A, Vector3 B, Vector3 C, int fov) {
-//	
-//	CAM::DESTROY_ALL_CAMS(TRUE);
-//	this->camera = CAM::CREATE_CAM((char *)"DEFAULT_SCRIPTED_CAMERA", TRUE);
-//	//this->ped_with_cam = PED::CREATE_RANDOM_PED(A.x, A.y, A.z);
-//	this->ped_with_cam = PLAYER::PLAYER_PED_ID();
-//	ENTITY::SET_ENTITY_COORDS_NO_OFFSET(ped_with_cam, A.x, A.y, A.z, 0, 0, 1);
-//	//AI::TASK_WANDER_IN_AREA(this->ped_with_cam, coords.x, coords.y, coords.z, WANDERING_RADIUS, 1.0, 1.0);
-//	float z_offset = ((float)((rand() % (6)) - 2)) / 10;
-//	CAM::ATTACH_CAM_TO_ENTITY(camera, this->ped_with_cam, 0, 0, z_offset, TRUE);
-//	CAM::SET_CAM_ACTIVE(camera, TRUE);
-//	CAM::SET_CAM_FOV(camera, (float)fov);
-//	CAM::RENDER_SCRIPT_CAMS(TRUE, FALSE, 0, TRUE, TRUE);
-//	//CAM::SET_CAM_MOTION_BLUR_STRENGTH(camera, 10.0);
-//
-//	//ENTITY::SET_ENTITY_HEALTH(ped_with_cam, 0);
-//	WAIT(500);
-//	//AI::CLEAR_PED_TASKS_IMMEDIATELY(ped_with_cam);
-//	//PED::RESURRECT_PED(ped_with_cam);
-//	//PED::REVIVE_INJURED_PED(ped_with_cam);
-//	//PED::SET_PED_CAN_RAGDOLL(ped_with_cam, TRUE);
-//
-//	ENTITY::SET_ENTITY_COLLISION(ped_with_cam, TRUE, TRUE);
-//	ENTITY::SET_ENTITY_VISIBLE(ped_with_cam, FALSE, FALSE);
-//	ENTITY::SET_ENTITY_ALPHA(ped_with_cam, 0, FALSE);
-//	ENTITY::SET_ENTITY_CAN_BE_DAMAGED(ped_with_cam, FALSE);
-//	PED::SET_BLOCKING_OF_NON_TEMPORARY_EVENTS(ped_with_cam, TRUE);
-//	PED::SET_PED_COMBAT_ATTRIBUTES(ped_with_cam, 1, FALSE);
-//
-//	Object seq = createNewSeq();
-//	AI::OPEN_SEQUENCE_TASK(&seq);
-//	//AI::TASK_USE_MOBILE_PHONE_TIMED(0, max_waiting_time + 10000);
-//	AI::TASK_STAND_STILL(0, 10000);
-//	AI::TASK_GO_TO_COORD_ANY_MEANS(0, A.x, A.y, A.z, 1.0, 0, 0, 786603, 0xbf800000);
-//	AI::TASK_GO_TO_COORD_ANY_MEANS(0, B.x, B.y, B.z, 1.0, 0, 0, 786603, 0xbf800000);
-//	AI::TASK_GO_TO_COORD_ANY_MEANS(0, C.x, C.y, C.z, 1.0, 0, 0, 786603, 0xbf800000);
-//	AI::TASK_GO_TO_COORD_ANY_MEANS(0, B.x, B.y, B.z, 1.0, 0, 0, 786603, 0xbf800000);
-//	AI::TASK_GO_TO_COORD_ANY_MEANS(0, A.x, A.y, A.z, 1.0, 0, 0, 786603, 0xbf800000);
-//	AI::TASK_GO_TO_COORD_ANY_MEANS(0, B.x, B.y, B.z, 1.0, 0, 0, 786603, 0xbf800000);
-//	AI::TASK_GO_TO_COORD_ANY_MEANS(0, C.x, C.y, C.z, 1.0, 0, 0, 786603, 0xbf800000);
-//	AI::TASK_GO_TO_COORD_ANY_MEANS(0, B.x, B.y, B.z, 1.0, 0, 0, 786603, 0xbf800000);
-//	AI::TASK_GO_TO_COORD_ANY_MEANS(0, A.x, A.y, A.z, 1.0, 0, 0, 786603, 0xbf800000);
-//	AI::CLOSE_SEQUENCE_TASK(seq);
-//	AI::TASK_PERFORM_SEQUENCE(ped_with_cam, seq);
-//	AI::CLEAR_SEQUENCE_TASK(&seq);
-//
-//	// set the cam_coords used on update() function
-//	this->cam_coords = CAM::GET_CAM_COORD(camera);
-//	this->cam_rot = CAM::GET_CAM_ROT(camera, 2);
-//}
+void DatasetAnnotator::setCameraMoving(Vector3 A, Vector3 B, Vector3 C, int fov) {
+	
+	CAM::DESTROY_ALL_CAMS(TRUE);
+	this->camera = CAM::CREATE_CAM((char *)"DEFAULT_SCRIPTED_CAMERA", TRUE);
+	//this->ped_with_cam = PED::CREATE_RANDOM_PED(A.x, A.y, A.z);
+	this->ped_with_cam = PLAYER::PLAYER_PED_ID();
+	ENTITY::SET_ENTITY_COORDS_NO_OFFSET(ped_with_cam, A.x, A.y, A.z, 0, 0, 1);
+	//AI::TASK_WANDER_IN_AREA(this->ped_with_cam, coords.x, coords.y, coords.z, WANDERING_RADIUS, 1.0, 1.0);
+	float z_offset = ((float)((rand() % (6)) - 2)) / 10;
+	CAM::ATTACH_CAM_TO_ENTITY(camera, this->ped_with_cam, 0, 0, z_offset, TRUE);
+	CAM::SET_CAM_ACTIVE(camera, TRUE);
+	CAM::SET_CAM_FOV(camera, (float)fov);
+	CAM::RENDER_SCRIPT_CAMS(TRUE, FALSE, 0, TRUE, TRUE);
+	//CAM::SET_CAM_MOTION_BLUR_STRENGTH(camera, 10.0);
+
+	//ENTITY::SET_ENTITY_HEALTH(ped_with_cam, 0);
+	WAIT(500);
+	//AI::CLEAR_PED_TASKS_IMMEDIATELY(ped_with_cam);
+	//PED::RESURRECT_PED(ped_with_cam);
+	//PED::REVIVE_INJURED_PED(ped_with_cam);
+	//PED::SET_PED_CAN_RAGDOLL(ped_with_cam, TRUE);
+
+	ENTITY::SET_ENTITY_COLLISION(ped_with_cam, TRUE, TRUE);
+	ENTITY::SET_ENTITY_VISIBLE(ped_with_cam, FALSE, FALSE);
+	ENTITY::SET_ENTITY_ALPHA(ped_with_cam, 0, FALSE);
+	ENTITY::SET_ENTITY_CAN_BE_DAMAGED(ped_with_cam, FALSE);
+	PED::SET_BLOCKING_OF_NON_TEMPORARY_EVENTS(ped_with_cam, TRUE);
+	PED::SET_PED_COMBAT_ATTRIBUTES(ped_with_cam, 1, FALSE);
+
+	Object seq = createNewSeq();
+	AI::OPEN_SEQUENCE_TASK(&seq);
+	//AI::TASK_USE_MOBILE_PHONE_TIMED(0, max_waiting_time + 10000);
+	AI::TASK_STAND_STILL(0, 10000);
+	AI::TASK_GO_TO_COORD_ANY_MEANS(0, A.x, A.y, A.z, 1.0, 0, 0, 786603, 0xbf800000);
+	AI::TASK_GO_TO_COORD_ANY_MEANS(0, B.x, B.y, B.z, 1.0, 0, 0, 786603, 0xbf800000);
+	AI::TASK_GO_TO_COORD_ANY_MEANS(0, C.x, C.y, C.z, 1.0, 0, 0, 786603, 0xbf800000);
+	AI::TASK_GO_TO_COORD_ANY_MEANS(0, B.x, B.y, B.z, 1.0, 0, 0, 786603, 0xbf800000);
+	AI::TASK_GO_TO_COORD_ANY_MEANS(0, A.x, A.y, A.z, 1.0, 0, 0, 786603, 0xbf800000);
+	AI::TASK_GO_TO_COORD_ANY_MEANS(0, B.x, B.y, B.z, 1.0, 0, 0, 786603, 0xbf800000);
+	AI::TASK_GO_TO_COORD_ANY_MEANS(0, C.x, C.y, C.z, 1.0, 0, 0, 786603, 0xbf800000);
+	AI::TASK_GO_TO_COORD_ANY_MEANS(0, B.x, B.y, B.z, 1.0, 0, 0, 786603, 0xbf800000);
+	AI::TASK_GO_TO_COORD_ANY_MEANS(0, A.x, A.y, A.z, 1.0, 0, 0, 786603, 0xbf800000);
+	AI::CLOSE_SEQUENCE_TASK(seq);
+	AI::TASK_PERFORM_SEQUENCE(ped_with_cam, seq);
+	AI::CLEAR_SEQUENCE_TASK(&seq);
+
+	// set the cam_coords used on update() function
+	this->cam_coords = CAM::GET_CAM_COORD(camera);
+	this->cam_rot = CAM::GET_CAM_ROT(camera, 2);
+}
 
 void DatasetAnnotator::setCameraFixed(Vector3 coords, Vector3 rot, float cam_z, int fov) {
 
@@ -1097,7 +1079,7 @@ void DatasetAnnotator::loadScenario()
 	
 	GdiplusStartup(&gdiplusToken, &gdiplusStartupInput, NULL);
 	GetEncoderClsid(L"image/bmp", &bmpClsid);
-	GetEncoderClsid(L"image/jpeg", &pngClsid);
+	GetEncoderClsid(L"image/png", &pngClsid);
 
 	//for (std::size_t i = 0; i < 7; i++) {
 	//	hChild = GetWindow(hWnd1, i);
@@ -1136,7 +1118,6 @@ void DatasetAnnotator::loadScenario()
 	//	}
 	//	
 	//}
-
 	set_status_text("End of LoadScenario Routine!", 1000, true);
 }
 
