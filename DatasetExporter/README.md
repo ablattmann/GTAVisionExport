@@ -6,8 +6,6 @@ This repostory extends the functionality of the `native` part of [GTAVisionExpor
 Set-up steps
 -----------
 
-In the following descriptions `$(ROOT)` will refer to the path to the root of this repository
-
 1. Download and extract ScriptHookV archive and drop the files in 'bin' into your GTAV exe folder.
 2. Download and extract the ScriptHookV SDK from the same page and extract the archive to some convenient place.
 3. Start CMake (cmake-gui) from your Windows start menu.

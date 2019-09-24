@@ -14,3 +14,6 @@ The main components of this part are based on the [ScenarioCreator](https://gith
 8. Also include `ScriptHookV.lib` from the `lib` directory (together with the path) under `Configurations Properties->Linker->Input->Additional Dependencies`.
 9. Under `Configuration Properties->General` change `Windows SDK Version` to `10.0.17763.0`, `Target Extension` to `.asi` and `Configuration Type` to `Dynamic Library (.dll)`
 10. Build the solution and copy the generated file `ScenarioCreator.asi` in the exe-folder of GTA-V.
+
+## Running the Mod
+
