@@ -1,12 +1,12 @@
-output_file: GTA_test
-scenario_file: GTA_test_scenarios
+output_file: recorded
+scenario_file: scenarios
 max_nr_peds_per_spawn: 50
-max_nr_samples: 900
+max_nr_samples: 300
 default_weather_name: 2
-time_factor: 12
+time_factor: 8
 frames_per_seq: 30
 max_nr_walking_peds: 512
 screen_width: 1920
 screen_height: 1080
 debug_mode: false
-record_all_seqs: true
+record_all_seqs: false

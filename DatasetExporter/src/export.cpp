@@ -50,7 +50,11 @@ static void unpack_depth(ID3D11Device* dev, ID3D11DeviceContext* ctx, ID3D11Reso
 	if (hr != S_OK) throw std::system_error(hr, std::system_category());
 	D3D11_TEXTURE2D_DESC src_desc;
 	src_tex->GetDesc(&src_desc);
+	/*FILE* log = fopen("gtanativeplugin.log", "a");
+	fprintf(log, "Source width is %zu; source height is %zu.\n", src_desc.Width, src_desc.Height);*/
 	if (src_desc.Format != DXGI_FORMAT_R32G8X24_TYPELESS) {
+		/*fprintf(log, "Source descriptor format is false, namely %zu. Returning...\n",src_desc.Format);
+		fclose(log);*/
 		return;
 	}
 	D3D11_MAPPED_SUBRESOURCE src_map = { 0 };
@@ -58,11 +62,9 @@ static void unpack_depth(ID3D11Device* dev, ID3D11DeviceContext* ctx, ID3D11Reso
 	if (hr != S_OK) throw std::system_error(hr, std::system_category());
 	if (dst.size() != src_desc.Height * src_desc.Width * 4) dst = vector<unsigned char>(src_desc.Height * src_desc.Width * 4);
 	if (stencil.size() != src_desc.Height * src_desc.Width) stencil = vector<unsigned char>(src_desc.Height * src_desc.Width);
-	//FILE* log = fopen("GTANativePlugin.log", "a");
-	//fprintf(log, "Source width is %zu; source height is %zu.\n",src_desc.Width,src_desc.Height);
-	//fprintf(log, "Stencil size is %zu\n", stencil.size());
-	//fprintf(log, "screenResX is %d; screenResY is %d.\n", screenResX, screenResY);
-	//fclose(log);
+	/*fprintf(log, "Stencil size is %zu\n", stencil.size());
+	fprintf(log, "screenResX is %d; screenResY is %d.\n", screenResX, screenResY);
+	fclose(log)*/;
 	/*if (screenResX >= src_desc.Width)
 	{*/
 	/*std::unique_lock<std::mutex> lock(copy_mtx);
