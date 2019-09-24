@@ -246,8 +246,5 @@ ModelManifest.xml
 
 *.exe
 *.dll
-
-#custom files
-Eigen3/
-native/src/param/
+**/*.idea
 
